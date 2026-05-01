@@ -3,8 +3,8 @@ import { AppShell } from "@/components/layout/app-shell";
 import type { ProgressDTO } from "@/lib/types";
 
 const progress: ProgressDTO = {
-  xp: 0,
-  level: 1,
+  totalXp: 0,
+  currentLevel: 1,
   unlockedStage: 1,
   lockedStage: 1,
   dailyStreak: 0,

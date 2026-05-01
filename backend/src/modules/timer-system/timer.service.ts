@@ -1,4 +1,5 @@
 import { prisma } from "../../shared/prisma/client";
+import type { DbClient } from "../../shared/prisma/types";
 import { badRequest, conflict, notFound } from "../../shared/errors/app-error";
 import { achievementService } from "../achievements/achievement.service";
 import { notificationService } from "../notifications/notification.service";
@@ -23,6 +24,15 @@ function computeAccumulatedSeconds(session: {
 }
 
 export class TimerService {
+  private async progressSnapshot(userId: string, tx: DbClient = prisma) {
+    const [progress, streak] = await Promise.all([
+      tx.userProgress.findUnique({ where: { userId } }),
+      tx.userStreak.findUnique({ where: { userId } })
+    ]);
+
+    return { progress, streak };
+  }
+
   async start(input: {
     userId: string;
     taskId?: string;
@@ -30,6 +40,7 @@ export class TimerService {
     plannedSeconds: number;
     clientStartedAt?: string;
     idempotencyKey: string;
+    replaceExisting?: boolean;
   }) {
     return prisma.$transaction(async (tx) => {
       const existingByKey = await tx.focusSession.findUnique({
@@ -37,14 +48,55 @@ export class TimerService {
       });
       if (existingByKey) return existingByKey;
 
-      const active = await tx.focusSession.findFirst({
+      const activeSessions = await tx.focusSession.findMany({
         where: {
           userId: input.userId,
           status: { in: ["CREATED", "RUNNING", "PAUSED"] },
           deletedAt: null
-        }
+        },
+        orderBy: { createdAt: "desc" }
       });
-      if (active) throw conflict("An active timer already exists. Resume or abandon it before starting another.");
+      const now = new Date();
+      if (activeSessions.length > 0 && !input.replaceExisting) {
+        throw conflict("An active timer already exists. Start a new timer only with explicit replacement.");
+      }
+
+      for (const active of activeSessions) {
+        const accumulatedFocusSeconds = computeAccumulatedSeconds(active);
+        await tx.focusSession.update({
+          where: { id: active.id },
+          data: {
+            status: "ABANDONED",
+            accumulatedFocusSeconds,
+            abandonedAt: now,
+            expectedEndAt: null,
+            pausedAt: null,
+            lastHeartbeatAt: now,
+            integrityScore: Math.max(0, active.integrityScore - 5),
+            antiCheatFlags: [
+              ...(Array.isArray(active.antiCheatFlags) ? active.antiCheatFlags : []),
+              {
+                type: "auto_abandoned_on_new_start",
+                reason: "New timer started before previous timer closed.",
+                at: now.toISOString()
+              }
+            ]
+          }
+        });
+        await tx.timerEvent.create({
+          data: {
+            userId: input.userId,
+            focusSessionId: active.id,
+            eventType: "ABANDONED",
+            metadata: {
+              reason: "auto_abandoned_on_new_start",
+              replacedByMode: input.mode,
+              replacedByIdempotencyKey: input.idempotencyKey,
+              accumulatedFocusSeconds
+            }
+          }
+        });
+      }
 
       if (input.taskId) {
         const task = await tx.task.findFirst({
@@ -53,7 +105,6 @@ export class TimerService {
         if (!task) throw notFound("Task not found.");
       }
 
-      const now = new Date();
       const session = await tx.focusSession.create({
         data: {
           userId: input.userId,
@@ -198,6 +249,7 @@ export class TimerService {
       });
 
       const amount = xpService.sessionXp(session.mode, session.plannedSeconds);
+      let xpEarned = 0;
       if (amount > 0) {
         await xpService.grantInTransaction(
           {
@@ -211,11 +263,16 @@ export class TimerService {
           },
           tx
         );
+        xpEarned = amount;
         await streakService.applyCompletedSession(userId, completedAt, tx);
         await achievementService.evaluate(userId, tx);
       }
 
-      return updated;
+      const snapshot = await this.progressSnapshot(userId, tx);
+      return {
+        session: { ...updated, xpEarned },
+        ...snapshot
+      };
     });
   }
 

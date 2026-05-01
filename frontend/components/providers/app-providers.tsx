@@ -3,11 +3,13 @@
 import { Toaster } from "sonner";
 
 import { FloatingTimer } from "@/components/dashboard/floating-timer";
+import { TimerCompletionSync } from "@/components/providers/timer-completion-sync";
 
 export function AppProviders({ children }: { children: React.ReactNode }) {
   return (
     <>
       {children}
+      <TimerCompletionSync />
       <FloatingTimer />
       <Toaster
         position="top-right"

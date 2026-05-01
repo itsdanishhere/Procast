@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { LogOut, Settings, Sparkles } from "lucide-react";
@@ -9,20 +10,52 @@ import { Button } from "@/components/ui/button";
 import { apiFetch } from "@/lib/api-client";
 import { appNav } from "@/lib/constants";
 import { cn } from "@/lib/cn";
+import { normalizeProgress } from "@/lib/progress-dto";
+import type { ProgressDTO } from "@/lib/types";
 
 type ShellUser = {
   fullName: string;
   username: string;
-  progress?: {
-    xp: number;
-    level: number;
-    dailyStreak: number;
-  } | null;
+  progress?: ProgressDTO | null;
 };
 
-export function AppShell({ user, children }: { user: ShellUser; children: React.ReactNode }) {
+export function AppShell({ user: initialUser, children }: { user: ShellUser; children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
+  const [user, setUser] = useState(initialUser);
+
+  useEffect(() => {
+    async function loadUser() {
+      try {
+        const response = await apiFetch("/users/me");
+        if (response.ok) {
+          const data = await response.json();
+          const mergedProgress = normalizeProgress(data.user.progress, data.user.streak, initialUser.progress ?? undefined);
+          setUser({
+            fullName: data.user.profile?.fullName || data.user.username,
+            username: data.user.username,
+            progress: mergedProgress
+          });
+        } else if (response.status === 401) {
+          toast.error("Please log in to continue.");
+          router.replace("/login");
+        }
+      } catch (e) {
+        console.error("AppShell user load failed", e);
+      }
+    }
+    loadUser();
+  }, [initialUser.progress, router]);
+
+  useEffect(() => {
+    function updateProgress(event: Event) {
+      const progress = (event as CustomEvent<ProgressDTO>).detail;
+      setUser((current) => ({ ...current, progress }));
+    }
+
+    window.addEventListener("procast:progress-updated", updateProgress);
+    return () => window.removeEventListener("procast:progress-updated", updateProgress);
+  }, []);
 
   async function logout() {
     await apiFetch("/auth/logout", { method: "POST" });
@@ -54,11 +87,11 @@ export function AppShell({ user, children }: { user: ShellUser; children: React.
           <div className="mt-4 grid grid-cols-3 gap-2 text-center">
             <div className="rounded-xl bg-white/[0.05] p-2">
               <p className="text-xs text-muted">Lvl</p>
-              <p className="font-display font-extrabold text-cyan">{user.progress?.level ?? 1}</p>
+              <p className="font-display font-extrabold text-cyan">{user.progress?.currentLevel ?? 1}</p>
             </div>
             <div className="rounded-xl bg-white/[0.05] p-2">
               <p className="text-xs text-muted">XP</p>
-              <p className="font-display font-extrabold text-mint">{user.progress?.xp ?? 0}</p>
+              <p className="font-display font-extrabold text-mint">{user.progress?.totalXp ?? 0}</p>
             </div>
             <div className="rounded-xl bg-white/[0.05] p-2">
               <p className="text-xs text-muted">Streak</p>

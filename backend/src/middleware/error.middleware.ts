@@ -26,6 +26,9 @@ export function errorMiddleware(error: unknown, _request: Request, response: Res
   }
 
   if (error instanceof AppError) {
+    if (error.statusCode === 401) {
+      logger.warn({ path: _request.path, message: error.message }, "Unauthorized access attempt");
+    }
     response.status(error.statusCode).json({
       error: {
         code: error.code,

@@ -31,6 +31,9 @@ type TimerState = {
   reset: () => void;
   complete: () => void;
   tick: () => void;
+  setModeAndDuration: (mode: TimerMode, label: string, seconds: number) => void;
+  autoPip: boolean;
+  setAutoPip: (val: boolean) => void;
 };
 
 function getRemaining(endsAtMs: number | null) {
@@ -107,7 +110,7 @@ export const useTimerStore = create<TimerState>()(
       },
       tick: () => {
         const state = get();
-        if (state.status !== "running") return;
+        if (state.status !== "running" || !state.endsAtMs) return;
 
         const remainingSeconds = getRemaining(state.endsAtMs);
         if (remainingSeconds <= 0) {
@@ -115,7 +118,20 @@ export const useTimerStore = create<TimerState>()(
         } else {
           set({ remainingSeconds });
         }
-      }
+      },
+      setModeAndDuration: (mode, label, seconds) => {
+        set({
+          mode,
+          label,
+          durationSeconds: seconds,
+          remainingSeconds: seconds,
+          status: "idle",
+          endsAtMs: null,
+          startedAtIso: null
+        });
+      },
+      autoPip: false,
+      setAutoPip: (autoPip: boolean) => set({ autoPip })
     }),
     {
       name: "procast-timer-v1"

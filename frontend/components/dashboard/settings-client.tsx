@@ -35,7 +35,8 @@ export function SettingsClient({
     setSaving(false);
 
     if (!response.ok) {
-      toast.error(data.error || "Could not save settings.");
+      const errorMsg = typeof data.error === "object" ? data.error.message || JSON.stringify(data.error) : data.error;
+      toast.error(errorMsg || "Could not save settings.");
       return;
     }
 

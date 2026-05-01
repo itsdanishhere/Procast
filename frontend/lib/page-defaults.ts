@@ -1,8 +1,8 @@
 import type { ProgressDTO, SettingsDTO } from "@/lib/types";
 
 export const shellProgress: ProgressDTO = {
-  xp: 0,
-  level: 1,
+  totalXp: 0,
+  currentLevel: 1,
   unlockedStage: 1,
   lockedStage: 1,
   dailyStreak: 0,

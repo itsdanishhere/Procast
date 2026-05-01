@@ -11,8 +11,10 @@ import type { ProgressDTO } from "@/lib/types";
 import { cn } from "@/lib/cn";
 
 export function ProgressMapPage({ progress }: { progress: ProgressDTO }) {
-  const next = getNextStage(progress.xp);
-  const percent = getStageProgressPercent(progress.xp);
+  const totalXp = progress.totalXp ?? 0;
+  const currentLevel = progress.currentLevel ?? 1;
+  const next = getNextStage(totalXp);
+  const percent = getStageProgressPercent(totalXp);
 
   return (
     <div className="space-y-6">
@@ -28,7 +30,7 @@ export function ProgressMapPage({ progress }: { progress: ProgressDTO }) {
             </div>
             <Badge className="border-cyan/25 bg-cyan/10 text-cyan">
               <Sparkles className="h-3.5 w-3.5" />
-              {getXpToNextLevel(progress.xp)} XP to {next.name}
+              {getXpToNextLevel(totalXp)} XP to {next.name}
             </Badge>
           </div>
         </div>
@@ -38,7 +40,7 @@ export function ProgressMapPage({ progress }: { progress: ProgressDTO }) {
             {worldStages.map((stage, index) => {
               const unlocked = stage.level <= progress.unlockedStage;
               const protectedStage = stage.level <= progress.lockedStage;
-              const current = stage.level === progress.level;
+              const current = stage.level === currentLevel;
               return (
                 <div key={stage.level} className="relative">
                   {index < worldStages.length - 1 ? (
@@ -82,8 +84,8 @@ export function ProgressMapPage({ progress }: { progress: ProgressDTO }) {
 
         <div className="border-t border-white/10 p-6">
           <div className="mb-2 flex justify-between text-sm font-bold text-muted">
-            <span>{progress.xp} XP earned</span>
-            <span>Level {progress.level}</span>
+            <span>{totalXp} XP earned</span>
+            <span>Level {currentLevel}</span>
           </div>
           <Progress value={percent} className="h-3" />
         </div>

@@ -1,6 +1,6 @@
 export type ProgressDTO = {
-  xp: number;
-  level: number;
+  totalXp: number;
+  currentLevel: number;
   unlockedStage: number;
   lockedStage: number;
   dailyStreak: number;

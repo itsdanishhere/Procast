@@ -33,7 +33,8 @@ export function ResetPasswordForm() {
     setLoading(false);
 
     if (!response.ok) {
-      setError(data.error || "Could not reset password.");
+      const errorMsg = typeof data.error === "object" ? data.error.message || JSON.stringify(data.error) : data.error;
+      setError(errorMsg || "Could not reset password.");
       return;
     }
 

@@ -46,7 +46,8 @@ export function SignupForm() {
     setLoading(false);
 
     if (!response.ok) {
-      setError(data.error || "Account creation failed.");
+      const errorMsg = typeof data.error === "object" ? data.error.message || JSON.stringify(data.error) : data.error;
+      setError(errorMsg || "Account creation failed.");
       return;
     }
 

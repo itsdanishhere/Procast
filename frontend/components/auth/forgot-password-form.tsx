@@ -28,7 +28,7 @@ export function ForgotPasswordForm() {
     setLoading(false);
 
     if (!response.ok) {
-      setError(data.error || "Could not send reset link.");
+      setError("An error occurred. Please check your email or try again later.");
       return;
     }
 

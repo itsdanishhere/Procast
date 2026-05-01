@@ -12,9 +12,9 @@ import type { ProgressDTO } from "@/lib/types";
 import { cn } from "@/lib/cn";
 
 export function WorldProgressCard({ progress }: { progress: ProgressDTO }) {
-  const current = getStage(progress.level);
-  const next = getNextStage(progress.xp);
-  const percent = getStageProgressPercent(progress.xp);
+  const current = getStage(progress.currentLevel);
+  const next = getNextStage(progress.totalXp);
+  const percent = getStageProgressPercent(progress.totalXp);
   const lockedBack = progress.lockedStage < progress.unlockedStage;
 
   return (
@@ -39,7 +39,7 @@ export function WorldProgressCard({ progress }: { progress: ProgressDTO }) {
           {worldStages.map((stage) => {
             const unlocked = stage.level <= progress.unlockedStage;
             const protectedStage = stage.level <= progress.lockedStage;
-            const currentStage = stage.level === progress.level;
+            const currentStage = stage.level === progress.currentLevel;
             return (
               <div
                 key={stage.level}
@@ -62,8 +62,8 @@ export function WorldProgressCard({ progress }: { progress: ProgressDTO }) {
 
       <div className="p-6">
         <div className="mb-2 flex items-center justify-between text-sm font-bold">
-          <span className="text-muted">Level {progress.level}</span>
-          <span className="text-cyan">{getXpToNextLevel(progress.xp)} XP to next</span>
+          <span className="text-muted">Level {progress.currentLevel}</span>
+          <span className="text-cyan">{getXpToNextLevel(progress.totalXp)} XP to next</span>
         </div>
         <Progress value={percent} />
         <Link href="/progress" className="mt-5 flex items-center gap-2 text-sm font-bold text-cyan">

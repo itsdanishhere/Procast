@@ -42,7 +42,8 @@ export function ReflectionModal({
     setLoading(false);
 
     if (!response.ok) {
-      toast.error(data.error || "Could not save reflection.");
+      const errorMsg = typeof data.error === "object" ? data.error.message || JSON.stringify(data.error) : data.error;
+      toast.error(errorMsg || "Could not save reflection.");
       return;
     }
 

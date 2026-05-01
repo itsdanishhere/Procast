@@ -28,8 +28,8 @@ export class TimerController {
   });
 
   complete = asyncHandler(async (request, response) => {
-    const session = await timerService.complete(request.auth!.userId, String(request.params.sessionId));
-    response.json({ session });
+    const result = await timerService.complete(request.auth!.userId, String(request.params.sessionId));
+    response.json(result);
   });
 
   abandon = asyncHandler(async (request, response) => {

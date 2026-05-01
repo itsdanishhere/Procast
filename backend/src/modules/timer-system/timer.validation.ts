@@ -5,7 +5,8 @@ export const startTimerSchema = z.object({
   mode: z.enum(["POMODORO", "SHORT_BREAK", "LONG_BREAK", "DEEP_FOCUS_45", "DEEP_FOCUS_60", "CUSTOM"]),
   plannedSeconds: z.number().int().min(60).max(4 * 60 * 60),
   clientStartedAt: z.string().datetime().optional(),
-  idempotencyKey: z.string().min(12).max(160)
+  idempotencyKey: z.string().min(12).max(160),
+  replaceExisting: z.boolean().default(false)
 });
 
 export const sessionIdSchema = z.object({

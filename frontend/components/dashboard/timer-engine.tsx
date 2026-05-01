@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Bell, Headphones, Pause, Play, RotateCcw, ShieldAlert } from "lucide-react";
 import { toast } from "sonner";
 
@@ -11,6 +11,8 @@ import { Progress } from "@/components/ui/progress";
 import { apiFetch } from "@/lib/api-client";
 import { timerModes } from "@/lib/constants";
 import { cn } from "@/lib/cn";
+import { normalizeProgress } from "@/lib/progress-dto";
+import { externalTimerArmEvent } from "@/lib/timer-events";
 import { formatSeconds, TimerMode, useTimerStore } from "@/lib/timer-store";
 import type { ProgressDTO, SessionDTO, SettingsDTO, TaskDTO } from "@/lib/types";
 
@@ -20,35 +22,16 @@ type TimerEngineProps = {
   onSessionSaved: (session: SessionDTO, progress: ProgressDTO | null) => void;
 };
 
-function playCompletionSound() {
-  const browserWindow = window as unknown as {
-    AudioContext?: typeof AudioContext;
-    webkitAudioContext?: typeof AudioContext;
-  };
-  const AudioContextClass = browserWindow.AudioContext || browserWindow.webkitAudioContext;
-  if (!AudioContextClass) return;
-  const context = new AudioContextClass();
-  const oscillator = context.createOscillator();
-  const gain = context.createGain();
-  oscillator.frequency.value = 720;
-  gain.gain.setValueAtTime(0.001, context.currentTime);
-  gain.gain.exponentialRampToValueAtTime(0.18, context.currentTime + 0.02);
-  gain.gain.exponentialRampToValueAtTime(0.001, context.currentTime + 0.45);
-  oscillator.connect(gain);
-  gain.connect(context.destination);
-  oscillator.start();
-  oscillator.stop(context.currentTime + 0.48);
-}
-
 export function TimerEngine({ tasks, settings, onSessionSaved }: TimerEngineProps) {
   const timer = useTimerStore();
   const [selectedMode, setSelectedMode] = useState<TimerMode>("POMODORO");
   const [customMinutes, setCustomMinutes] = useState(settings.deepFocusMinutes);
   const [selectedTaskId, setSelectedTaskId] = useState<string>("");
+  const [loading, setLoading] = useState(false);
   const [confirmExit, setConfirmExit] = useState(false);
-  const reportedCompletion = useRef<string | null>(null);
 
   const selectedTask = tasks.find((task) => task.id === selectedTaskId) ?? null;
+  const timerActive = timer.status === "running" || timer.status === "paused";
   const selectedDuration = selectedMode === "CUSTOM" ? customMinutes : timerModes[selectedMode].minutes;
   const progressPercent = timer.durationSeconds
     ? ((timer.durationSeconds - timer.remainingSeconds) / timer.durationSeconds) * 100
@@ -80,22 +63,6 @@ export function TimerEngine({ tasks, settings, onSessionSaved }: TimerEngineProp
     return () => window.removeEventListener("beforeunload", beforeUnload);
   }, [timer.status]);
 
-  useEffect(() => {
-    if (timer.status !== "completed" || !timer.completionId || reportedCompletion.current === timer.completionId) {
-      return;
-    }
-
-    reportedCompletion.current = timer.completionId;
-    playCompletionSound();
-    if (Notification.permission === "granted") {
-      new Notification("ProCast session complete", {
-        body: "XP added. Reflect now to strengthen tomorrow's focus."
-      });
-    }
-
-    void saveSession("COMPLETED");
-  }, [timer.status, timer.completionId]);
-
   async function saveSession(status: "COMPLETED" | "ABANDONED" | "INTERRUPTED", reason?: string) {
     if (!timer.backendSessionId) {
       toast.error("Backend timer session was not created. Start the session again.");
@@ -111,9 +78,21 @@ export function TimerEngine({ tasks, settings, onSessionSaved }: TimerEngineProp
     const data = await response.json();
 
     if (!response.ok) {
-      toast.error(data.error || "Could not save session.");
+      const errorMsg = typeof data.error === "object" ? data.error.message || JSON.stringify(data.error) : data.error;
+      toast.error(errorMsg || "Could not save session.");
       return;
     }
+
+    let nextProgress = data.progress ? normalizeProgress(data.progress, data.streak) : null;
+    if (status === "COMPLETED" && !nextProgress) {
+      const progressResponse = await apiFetch("/users/me");
+      if (progressResponse.ok) {
+        const progressData = await progressResponse.json();
+        nextProgress = normalizeProgress(progressData.user?.progress, progressData.user?.streak);
+      }
+    }
+
+    const xpEarned = Number(data.session.xpEarned ?? 0);
 
     onSessionSaved(
       {
@@ -123,51 +102,90 @@ export function TimerEngine({ tasks, settings, onSessionSaved }: TimerEngineProp
         status: data.session.status,
         durationMinutes: Math.round(data.session.plannedSeconds / 60),
         actualSeconds: data.session.accumulatedFocusSeconds,
-        xpEarned: 0,
+        xpEarned,
         startedAt: data.session.startedAt || data.session.createdAt,
         endedAt: data.session.completedAt || data.session.abandonedAt || data.session.updatedAt,
         task: selectedTask ? { title: selectedTask.title } : null
       },
-      null
+      nextProgress
     );
 
     if (status === "COMPLETED") {
-      toast.success(`Session complete. ${data.session.xpEarned} XP earned.`);
+      toast.success(`Session complete. ${xpEarned} XP earned.`);
     } else {
       toast.error("Session marked incomplete. Your world did not grow.");
     }
   }
 
+  function applySelection(mode: TimerMode) {
+    setSelectedMode(mode);
+    // Keep active timer state untouched; mode selection only prepares the next session.
+    if (timerActive) return;
+    const seconds = mode === "CUSTOM" 
+      ? (parseInt(String(customMinutes)) || 0) * 60 
+      : timerModes[mode].minutes * 60;
+    timer.setModeAndDuration(mode, timerModes[mode].label, seconds);
+  }
+
   async function startTimer() {
+    window.dispatchEvent(new Event(externalTimerArmEvent));
+
     if (Notification.permission === "default") {
       await Notification.requestPermission();
     }
 
+    setLoading(true);
     const backendMode = selectedMode === "DEEP_FOCUS" ? "DEEP_FOCUS_45" : selectedMode;
+    const plannedSeconds = selectedMode === "CUSTOM" 
+      ? (parseInt(String(customMinutes)) || 0) * 60 
+      : timerModes[selectedMode].minutes * 60;
+
+    if (plannedSeconds < 60) {
+      toast.error("Minimum focus time is 1 minute.");
+      setLoading(false);
+      return;
+    }
+
     const response = await apiFetch("/timer/sessions", {
       method: "POST",
       body: JSON.stringify({
-        taskId: selectedTask?.id,
+        taskId: selectedTaskId || undefined,
         mode: backendMode,
-        plannedSeconds: selectedDuration * 60,
+        plannedSeconds,
         clientStartedAt: new Date().toISOString(),
-        idempotencyKey: crypto.randomUUID()
+        idempotencyKey: `start-${Date.now()}`,
+        replaceExisting: true
       })
     });
     const data = await response.json();
+    setLoading(false);
+
     if (!response.ok) {
-      toast.error(data.error?.message || data.error || "Could not start backend timer.");
+      const errorMsg = typeof data.error === "object" ? data.error.message || JSON.stringify(data.error) : data.error;
+      const errorCode = typeof data.error === "object" ? data.error.code : "HTTP_" + response.status;
+      const displayError =
+        response.status === 401
+          ? "Your session is not authenticated. Log in again, then start focus."
+          : errorMsg || "Could not start backend timer.";
+      
+      toast.error(
+        <div className="flex flex-col gap-1">
+          <p className="font-bold">{displayError}</p>
+          <p className="text-[10px] opacity-70">Error Code: {errorCode}</p>
+        </div>
+      );
       return;
     }
 
     timer.start({
       mode: selectedMode,
       label: timerModes[selectedMode].label,
-      durationSeconds: selectedDuration * 60,
-      taskId: selectedTask?.id,
-      taskTitle: selectedTask?.title,
+      durationSeconds: plannedSeconds,
+      taskId: selectedTaskId || undefined,
+      taskTitle: tasks.find(t => t.id === selectedTaskId)?.title || undefined,
       backendSessionId: data.session.id
     });
+    
     toast.success("Focus mode started. Your world is on the line.");
   }
 
@@ -199,7 +217,7 @@ export function TimerEngine({ tasks, settings, onSessionSaved }: TimerEngineProp
           <button
             key={mode.mode}
             type="button"
-            onClick={() => setSelectedMode(mode.mode)}
+            onClick={() => applySelection(mode.mode)}
             className={cn(
               "rounded-full border px-4 py-2 text-sm font-bold transition",
               selectedMode === mode.mode
@@ -292,14 +310,22 @@ export function TimerEngine({ tasks, settings, onSessionSaved }: TimerEngineProp
                 Resume
               </Button>
             ) : (
-              <Button onClick={startTimer}>
+              <Button onClick={startTimer} disabled={loading}>
                 <Play className="h-4 w-4" />
-                Start Focus
+                {loading ? "Starting..." : "Start Focus"}
               </Button>
             )}
-            <Button variant="secondary" onClick={timer.reset}>
+            <Button variant="secondary" size="lg" className="rounded-full px-6 font-bold" onClick={() => timer.reset()}>
               <RotateCcw className="h-4 w-4" />
               Reset
+            </Button>
+            <Button
+              variant="secondary"
+              size="lg"
+              className="rounded-full border-cyan/20 px-6 font-bold text-cyan hover:bg-cyan/10"
+              onClick={() => applySelection(selectedMode)}
+            >
+              Set
             </Button>
             {(timer.status === "running" || timer.status === "paused") && (
               <Button variant="danger" onClick={() => setConfirmExit(true)}>

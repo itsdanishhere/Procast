@@ -15,8 +15,8 @@ docker compose up -d
 
 This starts:
 
-- PostgreSQL on `localhost:5432`
-- Redis on `localhost:6379`
+- PostgreSQL on `127.0.0.1:5432`
+- Redis on `127.0.0.1:6379`
 
 ## Install
 

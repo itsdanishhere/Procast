@@ -49,7 +49,8 @@ export function TaskManager({ tasks, onTasksChange }: { tasks: TaskDTO[]; onTask
     setLoading(false);
 
     if (!response.ok) {
-      toast.error(data.error || "Could not add task.");
+      const errorMsg = typeof data.error === "object" ? data.error.message || JSON.stringify(data.error) : data.error;
+      toast.error(errorMsg || "Could not add task.");
       return;
     }
 
@@ -76,7 +77,8 @@ export function TaskManager({ tasks, onTasksChange }: { tasks: TaskDTO[]; onTask
     const data = await response.json();
 
     if (!response.ok) {
-      toast.error(data.error || "Could not update task.");
+      const errorMsg = typeof data.error === "object" ? data.error.message || JSON.stringify(data.error) : data.error;
+      toast.error(errorMsg || "Could not update task.");
       return;
     }
 

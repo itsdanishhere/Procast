@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Activity, Clock3, Flame, Sparkles } from "lucide-react";
 
 import { ReflectionModal } from "@/components/dashboard/reflection-modal";
@@ -8,7 +8,24 @@ import { TaskManager } from "@/components/dashboard/task-manager";
 import { TimerEngine } from "@/components/dashboard/timer-engine";
 import { WorldProgressCard } from "@/components/dashboard/world-progress-card";
 import { Card } from "@/components/ui/card";
+import { apiFetch } from "@/lib/api-client";
+import { emitProgressUpdate, normalizeProgress } from "@/lib/progress-dto";
+import { timerSessionSavedEvent, type TimerSessionSavedDetail } from "@/lib/timer-events";
 import type { ProgressDTO, SessionDTO, SettingsDTO, TaskDTO } from "@/lib/types";
+
+function isToday(value: string) {
+  const date = new Date(value);
+  const now = new Date();
+  return (
+    date.getFullYear() === now.getFullYear() &&
+    date.getMonth() === now.getMonth() &&
+    date.getDate() === now.getDate()
+  );
+}
+
+function countCompletedToday(sessions: SessionDTO[]) {
+  return sessions.filter((session) => session.status === "COMPLETED" && isToday(session.startedAt)).length;
+}
 
 export function DashboardClient({
   initialTasks,
@@ -21,29 +38,73 @@ export function DashboardClient({
   initialProgress: ProgressDTO;
   settings: SettingsDTO;
 }) {
-  const [tasks, setTasks] = useState(initialTasks);
-  const [sessions, setSessions] = useState(initialSessions);
-  const [progress, setProgress] = useState(initialProgress);
+  const [tasks, setTasks] = useState<TaskDTO[]>(initialTasks);
+  const [sessions, setSessions] = useState<SessionDTO[]>(initialSessions);
+  const [progress, setProgress] = useState<ProgressDTO>(initialProgress);
   const [reflectionSessionId, setReflectionSessionId] = useState<string | null>(null);
+  const [todayCompletedCount, setTodayCompletedCount] = useState(() => countCompletedToday(initialSessions));
 
-  const completedToday = sessions.filter((session) => {
-    const date = new Date(session.startedAt);
-    const now = new Date();
-    return (
-      session.status === "COMPLETED" &&
-      date.getFullYear() === now.getFullYear() &&
-      date.getMonth() === now.getMonth() &&
-      date.getDate() === now.getDate()
-    );
-  }).length;
+  function addSession(session: SessionDTO) {
+    setSessions((current) => {
+      if (current.some((item) => item.id === session.id)) return current;
+      if (session.status === "COMPLETED" && isToday(session.startedAt)) {
+        setTodayCompletedCount((count) => count + 1);
+      }
+      return [session, ...current];
+    });
+  }
+
+  useEffect(() => {
+    async function loadDashboard() {
+      try {
+        const [tasksRes, meRes, analyticsRes] = await Promise.all([
+          apiFetch("/tasks"),
+          apiFetch("/users/me"),
+          apiFetch("/analytics/dashboard")
+        ]);
+        
+        if (tasksRes.ok && meRes.ok) {
+          const tasksData = await tasksRes.json();
+          const meData = await meRes.json();
+          setTasks(tasksData.tasks || []);
+          
+          // Merge streak data into progress for frontend compatibility
+          const mergedProgress = normalizeProgress(meData.user.progress, meData.user.streak, initialProgress);
+          setProgress(mergedProgress);
+          emitProgressUpdate(mergedProgress);
+        }
+        if (analyticsRes.ok) {
+          const analyticsData = await analyticsRes.json();
+          const todayKey = new Date().toISOString().slice(0, 10);
+          const today = analyticsData.daily?.find((item: { day: string }) => item.day === todayKey) ?? analyticsData.daily?.at(-1);
+          setTodayCompletedCount((current) => Math.max(current, today?.completedSessions ?? 0));
+        }
+      } catch (e) {
+        console.error("Dashboard load failed", e);
+      }
+    }
+    loadDashboard();
+  }, []);
+
+  useEffect(() => {
+    function handleSavedSession(event: Event) {
+      const { session, progress: nextProgress } = (event as CustomEvent<TimerSessionSavedDetail>).detail;
+      addSession(session);
+      if (nextProgress) setProgress(nextProgress);
+      if (session.status === "COMPLETED") setReflectionSessionId(session.id);
+    }
+
+    window.addEventListener(timerSessionSavedEvent, handleSavedSession);
+    return () => window.removeEventListener(timerSessionSavedEvent, handleSavedSession);
+  }, []);
 
   return (
     <>
       <div className="mb-5 grid gap-4 md:grid-cols-4">
         {[
-          { label: "Today", value: `${completedToday}/${settings.dailyFocusGoal}`, icon: Clock3, color: "text-cyan" },
+          { label: "Today", value: `${todayCompletedCount}/${settings.dailyFocusGoal}`, icon: Clock3, color: "text-cyan" },
           { label: "Streak", value: `${progress.dailyStreak} days`, icon: Flame, color: "text-amber" },
-          { label: "XP", value: progress.xp.toLocaleString(), icon: Sparkles, color: "text-mint" },
+          { label: "XP", value: (progress.totalXp ?? 0).toLocaleString(), icon: Sparkles, color: "text-mint" },
           { label: "Lock Pressure", value: progress.lockStrikes ? `${progress.lockStrikes} strike` : "Stable", icon: Activity, color: "text-danger" }
         ].map((item) => {
           const Icon = item.icon;
@@ -67,8 +128,11 @@ export function DashboardClient({
             tasks={tasks.filter((task) => task.status === "ACTIVE")}
             settings={settings}
             onSessionSaved={(session, nextProgress) => {
-              setSessions((current) => [session, ...current]);
-              if (nextProgress) setProgress(nextProgress);
+              addSession(session);
+              if (nextProgress) {
+                setProgress(nextProgress);
+                emitProgressUpdate(nextProgress);
+              }
               if (session.status === "COMPLETED") setReflectionSessionId(session.id);
             }}
           />

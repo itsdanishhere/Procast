@@ -1,10 +1,12 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 import { ReflectionModal } from "@/components/dashboard/reflection-modal";
 import { TimerEngine } from "@/components/dashboard/timer-engine";
 import { WorldProgressCard } from "@/components/dashboard/world-progress-card";
+import { emitProgressUpdate } from "@/lib/progress-dto";
+import { timerSessionSavedEvent, type TimerSessionSavedDetail } from "@/lib/timer-events";
 import type { ProgressDTO, SettingsDTO, TaskDTO } from "@/lib/types";
 
 export function TimerPageClient({
@@ -19,6 +21,17 @@ export function TimerPageClient({
   const [currentProgress, setCurrentProgress] = useState(progress);
   const [reflectionSessionId, setReflectionSessionId] = useState<string | null>(null);
 
+  useEffect(() => {
+    function handleSavedSession(event: Event) {
+      const { session, progress: nextProgress } = (event as CustomEvent<TimerSessionSavedDetail>).detail;
+      if (nextProgress) setCurrentProgress(nextProgress);
+      if (session.status === "COMPLETED") setReflectionSessionId(session.id);
+    }
+
+    window.addEventListener(timerSessionSavedEvent, handleSavedSession);
+    return () => window.removeEventListener(timerSessionSavedEvent, handleSavedSession);
+  }, []);
+
   return (
     <>
       <div className="mx-auto max-w-4xl space-y-5">
@@ -26,7 +39,10 @@ export function TimerPageClient({
           tasks={tasks}
           settings={settings}
           onSessionSaved={(session, nextProgress) => {
-            if (nextProgress) setCurrentProgress(nextProgress);
+            if (nextProgress) {
+              setCurrentProgress(nextProgress);
+              emitProgressUpdate(nextProgress);
+            }
             if (session.status === "COMPLETED") setReflectionSessionId(session.id);
           }}
         />

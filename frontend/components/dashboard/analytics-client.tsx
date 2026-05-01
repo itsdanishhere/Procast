@@ -42,8 +42,13 @@ export function AnalyticsClient() {
       .then(setData);
   }, []);
 
-  if (!data) {
-    return <Card className="p-8 text-muted">Loading analytics...</Card>;
+  if (!data || !data.summary) {
+    return (
+      <Card className="glass p-12 text-center">
+        <p className="text-muted">Loading analytics data...</p>
+        <p className="mt-2 text-xs text-faint">Ensure the backend is running and you are logged in.</p>
+      </Card>
+    );
   }
 
   const stats = [

@@ -1,0 +1,705 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum AccountStatus {
+  ACTIVE
+  PENDING_VERIFICATION
+  LOCKED
+  SUSPENDED
+  DELETED
+}
+
+enum LoginSessionStatus {
+  ACTIVE
+  ROTATED
+  REVOKED
+  EXPIRED
+}
+
+enum TaskPriority {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
+
+enum TaskStatus {
+  ACTIVE
+  COMPLETED
+  ARCHIVED
+  DELETED
+}
+
+enum FocusMode {
+  POMODORO
+  SHORT_BREAK
+  LONG_BREAK
+  DEEP_FOCUS_45
+  DEEP_FOCUS_60
+  CUSTOM
+}
+
+enum FocusSessionStatus {
+  CREATED
+  RUNNING
+  PAUSED
+  COMPLETED
+  ABANDONED
+  EXPIRED
+  RECOVERED
+}
+
+enum TimerEventType {
+  CREATED
+  STARTED
+  PAUSED
+  RESUMED
+  HEARTBEAT
+  COMPLETED
+  ABANDONED
+  EXPIRED
+  RECOVERED
+  ANTI_CHEAT_FLAGGED
+}
+
+enum XpSourceType {
+  FOCUS_SESSION
+  TASK_COMPLETION
+  STREAK_BONUS
+  REFLECTION
+  ACHIEVEMENT
+  WEEKLY_CONSISTENCY
+  ADMIN_ADJUSTMENT
+  RECOVERY_REPLAY
+}
+
+enum WorldStage {
+  EMPTY_LAND
+  SMALL_HOUSE
+  BETTER_HOUSE
+  GARDEN
+  STREET
+  TOWN
+  VILLAGE
+  LARGE_TOWN
+  CITY
+  KINGDOM
+}
+
+enum NotificationType {
+  STREAK_WARNING
+  MISSED_DAY_ALERT
+  LEVEL_UP
+  WORLD_UNLOCK
+  ACHIEVEMENT_REWARD
+  WEEKLY_SUMMARY
+  PASSWORD_RESET
+  EMAIL_VERIFICATION
+  SYSTEM
+}
+
+enum NotificationStatus {
+  PENDING
+  QUEUED
+  SENT
+  FAILED
+  READ
+}
+
+enum AuditSeverity {
+  INFO
+  WARNING
+  ERROR
+  CRITICAL
+}
+
+enum RecoveryStatus {
+  DETECTED
+  QUEUED
+  RUNNING
+  SUCCEEDED
+  FAILED
+}
+
+enum CronRunStatus {
+  RUNNING
+  SUCCEEDED
+  FAILED
+  MISSED
+}
+
+enum QueueJobStatus {
+  WAITING
+  ACTIVE
+  COMPLETED
+  FAILED
+  RETRYING
+  STALLED
+}
+
+model User {
+  id                 String        @id @default(cuid())
+  username           String        @unique
+  email              String        @unique
+  normalizedEmail    String        @unique
+  passwordHash       String
+  accountStatus      AccountStatus @default(PENDING_VERIFICATION)
+  emailVerifiedAt    DateTime?
+  securityFlags      Json          @default("{}")
+  failedLoginCount   Int           @default(0)
+  lockedUntil        DateTime?
+  lastLoginAt        DateTime?
+  lastLoginIp        String?
+  createdAt          DateTime      @default(now())
+  updatedAt          DateTime      @updatedAt
+  deletedAt          DateTime?
+
+  profile             UserProfile?
+  settings            UserSettings?
+  loginSessions       LoginSession[]
+  passwordResetTokens PasswordResetToken[]
+  emailTokens         EmailVerificationToken[]
+  tasks               Task[]
+  avoidancePrompts    TaskAvoidancePrompt[]
+  focusSessions       FocusSession[]
+  timerEvents         TimerEvent[]
+  xpLedger            XpLedger[]
+  progress            UserProgress?
+  streak              UserStreak?
+  streakEvents        StreakEvent[]
+  worldUnlocks        WorldUnlock[]
+  achievements        UserAchievement[]
+  reflections         Reflection[]
+  analyticsDaily      AnalyticsDailySnapshot[]
+  analyticsWeekly     AnalyticsWeeklySummary[]
+  notifications       Notification[]
+  auditLogs           AuditLog[]
+  securityEvents      SecurityEvent[]
+  recoveryLogs        RecoveryLog[]
+  idempotencyKeys     IdempotencyKey[]
+}
+
+model UserProfile {
+  id                      String   @id @default(cuid())
+  userId                  String   @unique
+  fullName                String
+  timezone                String   @default("UTC")
+  productivityPreferences Json     @default("{}")
+  onboardingProgress      Json     @default("{}")
+  currentFocusGoal        Int      @default(3)
+  createdAt               DateTime @default(now())
+  updatedAt               DateTime @updatedAt
+  deletedAt               DateTime?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model UserSettings {
+  id                       String   @id @default(cuid())
+  userId                   String   @unique
+  notificationPreferences  Json     @default("{}")
+  reminderPreferences      Json     @default("{}")
+  streakForgivenessEnabled Boolean  @default(false)
+  timerPreferences         Json     @default("{}")
+  focusModePreferences     Json     @default("{}")
+  uiPreferences            Json     @default("{}")
+  createdAt                DateTime @default(now())
+  updatedAt                DateTime @updatedAt
+  deletedAt                DateTime?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model LoginSession {
+  id               String             @id @default(cuid())
+  userId           String
+  refreshTokenHash String             @unique
+  accessTokenJti   String?
+  deviceId         String?
+  userAgent        String?
+  ipAddress        String?
+  suspiciousScore  Int                @default(0)
+  status           LoginSessionStatus @default(ACTIVE)
+  expiresAt        DateTime
+  rotatedFromId    String?
+  revokedAt        DateTime?
+  lastUsedAt       DateTime           @default(now())
+  createdAt        DateTime           @default(now())
+  updatedAt        DateTime           @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, status])
+  @@index([expiresAt])
+}
+
+model PasswordResetToken {
+  id             String   @id @default(cuid())
+  userId         String
+  tokenHash      String   @unique
+  requestedIp    String?
+  requestedAgent String?
+  expiresAt      DateTime
+  usedAt         DateTime?
+  createdAt      DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, expiresAt])
+}
+
+model EmailVerificationToken {
+  id        String   @id @default(cuid())
+  userId    String
+  tokenHash String   @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model Task {
+  id              String       @id @default(cuid())
+  userId          String
+  title           String
+  description     String?
+  priority        TaskPriority @default(MEDIUM)
+  status          TaskStatus   @default(ACTIVE)
+  dueAt           DateTime?
+  recurrenceRule  String?
+  tags            String[]     @default([])
+  category        String?
+  completedAt     DateTime?
+  createdBy       String?
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+  deletedAt       DateTime?
+
+  user              User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  avoidancePrompts  TaskAvoidancePrompt[]
+  focusSessions     FocusSession[]
+
+  @@index([userId, status, dueAt])
+  @@index([userId, priority])
+}
+
+model TaskAvoidancePrompt {
+  id        String   @id @default(cuid())
+  userId    String
+  taskId    String?
+  prompt    String
+  context   Json     @default("{}")
+  createdAt DateTime @default(now())
+
+  user User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  task Task? @relation(fields: [taskId], references: [id], onDelete: SetNull)
+
+  @@index([userId, createdAt])
+}
+
+model FocusSession {
+  id                      String             @id @default(cuid())
+  userId                  String
+  taskId                  String?
+  mode                    FocusMode
+  status                  FocusSessionStatus @default(CREATED)
+  plannedSeconds          Int
+  accumulatedFocusSeconds Int                @default(0)
+  pauseCount              Int                @default(0)
+  startedAt               DateTime?
+  expectedEndAt           DateTime?
+  pausedAt                DateTime?
+  completedAt             DateTime?
+  abandonedAt             DateTime?
+  lastHeartbeatAt         DateTime?
+  clientStartedAt         DateTime?
+  integrityScore          Int                @default(100)
+  antiCheatFlags          Json               @default("[]")
+  idempotencyKey          String             @unique
+  createdAt               DateTime           @default(now())
+  updatedAt               DateTime           @updatedAt
+  deletedAt               DateTime?
+
+  user        User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  task        Task?        @relation(fields: [taskId], references: [id], onDelete: SetNull)
+  timerEvents TimerEvent[]
+  reflections Reflection[]
+  xpEntries   XpLedger[]
+
+  @@index([userId, status])
+  @@index([userId, startedAt])
+  @@index([lastHeartbeatAt])
+}
+
+model TimerEvent {
+  id             String         @id @default(cuid())
+  userId         String
+  focusSessionId String
+  eventType      TimerEventType
+  serverTime     DateTime       @default(now())
+  clientTime     DateTime?
+  metadata       Json           @default("{}")
+  createdAt      DateTime       @default(now())
+
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  focusSession FocusSession @relation(fields: [focusSessionId], references: [id], onDelete: Cascade)
+
+  @@index([focusSessionId, serverTime])
+  @@index([userId, eventType])
+}
+
+model UserProgress {
+  id                String     @id @default(cuid())
+  userId            String     @unique
+  totalXp           Int        @default(0)
+  currentLevel      Int        @default(1)
+  currentWorldStage WorldStage @default(EMPTY_LAND)
+  highestWorldStage WorldStage @default(EMPTY_LAND)
+  lockedWorldStage  WorldStage @default(EMPTY_LAND)
+  lockStrikes       Int        @default(0)
+  version           Int        @default(1)
+  updatedAt         DateTime   @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model XpLedger {
+  id             String       @id @default(cuid())
+  userId         String
+  focusSessionId String?
+  sourceType     XpSourceType
+  sourceId       String
+  reason         String
+  amount         Int
+  balanceAfter   Int
+  idempotencyKey String       @unique
+  metadata       Json         @default("{}")
+  createdAt      DateTime     @default(now())
+  reversedAt     DateTime?
+
+  user         User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  focusSession FocusSession? @relation(fields: [focusSessionId], references: [id], onDelete: SetNull)
+
+  @@index([userId, createdAt])
+  @@index([sourceType, sourceId])
+}
+
+model UserStreak {
+  id                    String   @id @default(cuid())
+  userId                String   @unique
+  dailyStreak           Int      @default(0)
+  weeklyStreak          Int      @default(0)
+  bestDailyStreak       Int      @default(0)
+  bestWeeklyStreak      Int      @default(0)
+  lastQualifiedDate     DateTime?
+  lastQualifiedWeek     String?
+  forgivenessCredits    Int      @default(0)
+  timezone              String   @default("UTC")
+  consistencyScore      Int      @default(0)
+  updatedAt             DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model StreakEvent {
+  id        String   @id @default(cuid())
+  userId    String
+  eventDate DateTime
+  timezone  String
+  action    String
+  previous  Json
+  next      Json
+  reason    String
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, eventDate])
+}
+
+model WorldUnlock {
+  id        String     @id @default(cuid())
+  userId    String
+  stage     WorldStage
+  unlockedAt DateTime?
+  lockedAt  DateTime?
+  reason    String
+  metadata  Json      @default("{}")
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, stage])
+}
+
+model Achievement {
+  id          String   @id @default(cuid())
+  code        String   @unique
+  title       String
+  description String
+  xpReward    Int      @default(0)
+  rule        Json
+  active      Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  users UserAchievement[]
+}
+
+model UserAchievement {
+  id            String   @id @default(cuid())
+  userId        String
+  achievementId String
+  unlockedAt    DateTime @default(now())
+  metadata      Json     @default("{}")
+
+  user        User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  achievement Achievement @relation(fields: [achievementId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, achievementId])
+}
+
+model Reflection {
+  id              String   @id @default(cuid())
+  userId          String
+  focusSessionId  String?
+  distraction     String
+  wentWell        String
+  improveTomorrow String
+  emotionalTone   String?
+  patternTags     String[] @default([])
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  deletedAt       DateTime?
+
+  user         User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  focusSession FocusSession? @relation(fields: [focusSessionId], references: [id], onDelete: SetNull)
+
+  @@index([userId, createdAt])
+}
+
+model ReflectionPattern {
+  id             String   @id @default(cuid())
+  userId         String
+  pattern        String
+  frequency      Int      @default(1)
+  lastSeenAt      DateTime @default(now())
+  confidenceScore Int      @default(50)
+  metadata       Json     @default("{}")
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@index([userId, frequency])
+}
+
+model AnalyticsDailySnapshot {
+  id                     String   @id @default(cuid())
+  userId                 String
+  snapshotDate           DateTime
+  timezone               String
+  focusSeconds           Int      @default(0)
+  completedSessions      Int      @default(0)
+  abandonedSessions      Int      @default(0)
+  completedTasks         Int      @default(0)
+  xpEarned               Int      @default(0)
+  bestProductivityHour   Int?
+  burnoutRiskScore       Int      @default(0)
+  focusDropPatternScore  Int      @default(0)
+  behavioralSummary      Json     @default("{}")
+  createdAt              DateTime @default(now())
+  updatedAt              DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, snapshotDate])
+  @@index([snapshotDate])
+}
+
+model AnalyticsWeeklySummary {
+  id                  String   @id @default(cuid())
+  userId              String
+  isoWeek             String
+  focusSeconds        Int      @default(0)
+  completedSessions   Int      @default(0)
+  completedTasks      Int      @default(0)
+  consistencyScore    Int      @default(0)
+  weeklyReportPayload Json     @default("{}")
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, isoWeek])
+}
+
+model Notification {
+  id          String             @id @default(cuid())
+  userId      String
+  type        NotificationType
+  status      NotificationStatus @default(PENDING)
+  title       String
+  body        String
+  payload     Json               @default("{}")
+  scheduledAt DateTime?
+  sentAt      DateTime?
+  readAt      DateTime?
+  retryCount  Int                @default(0)
+  createdAt   DateTime           @default(now())
+  updatedAt   DateTime           @updatedAt
+  deletedAt   DateTime?
+
+  user       User                   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  deliveries NotificationDelivery[]
+
+  @@index([userId, status])
+  @@index([scheduledAt])
+}
+
+model NotificationDelivery {
+  id             String   @id @default(cuid())
+  notificationId String
+  channel        String
+  provider       String?
+  status         String
+  error          String?
+  attemptedAt    DateTime @default(now())
+  metadata       Json     @default("{}")
+
+  notification Notification @relation(fields: [notificationId], references: [id], onDelete: Cascade)
+}
+
+model IdempotencyKey {
+  id          String   @id @default(cuid())
+  userId      String?
+  key         String   @unique
+  scope       String
+  requestHash String
+  response    Json?
+  statusCode  Int?
+  expiresAt   DateTime
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([scope, expiresAt])
+}
+
+model AuditLog {
+  id           String        @id @default(cuid())
+  userId       String?
+  actorUserId  String?
+  action       String
+  resourceType String
+  resourceId   String?
+  severity     AuditSeverity @default(INFO)
+  ipAddress    String?
+  userAgent    String?
+  metadata     Json          @default("{}")
+  createdAt    DateTime      @default(now())
+
+  user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([resourceType, resourceId])
+  @@index([createdAt])
+}
+
+model SecurityEvent {
+  id          String        @id @default(cuid())
+  userId      String?
+  eventType   String
+  severity    AuditSeverity
+  ipAddress   String?
+  userAgent   String?
+  fingerprint String?
+  metadata    Json          @default("{}")
+  createdAt   DateTime      @default(now())
+
+  user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([userId, eventType])
+  @@index([ipAddress, createdAt])
+}
+
+model RecoveryLog {
+  id             String         @id @default(cuid())
+  userId         String?
+  failureType    String
+  cause          String
+  affectedEntity String?
+  status         RecoveryStatus @default(DETECTED)
+  recoveryAction String
+  success        Boolean?
+  error          String?
+  metadata       Json           @default("{}")
+  detectedAt     DateTime       @default(now())
+  resolvedAt     DateTime?
+
+  user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([status, detectedAt])
+  @@index([failureType])
+}
+
+model CronRun {
+  id           String        @id @default(cuid())
+  jobName      String
+  status       CronRunStatus
+  startedAt    DateTime      @default(now())
+  finishedAt   DateTime?
+  durationMs   Int?
+  error        String?
+  recoveryLogId String?
+  metadata     Json          @default("{}")
+
+  @@index([jobName, startedAt])
+}
+
+model QueueJobAudit {
+  id          String         @id @default(cuid())
+  queueName   String
+  jobName     String
+  jobId       String?
+  status      QueueJobStatus
+  attempts    Int            @default(0)
+  error       String?
+  payload     Json           @default("{}")
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+
+  @@index([queueName, status])
+}
+
+model HealthCheckRecord {
+  id          String        @id @default(cuid())
+  component   String
+  status      String
+  severity    AuditSeverity @default(INFO)
+  latencyMs   Int?
+  details     Json          @default("{}")
+  checkedAt   DateTime      @default(now())
+
+  @@index([component, checkedAt])
+}
+
+model BackupRun {
+  id          String   @id @default(cuid())
+  status      String
+  target      String
+  startedAt   DateTime @default(now())
+  finishedAt  DateTime?
+  sizeBytes   BigInt?
+  checksum    String?
+  error       String?
+  metadata    Json     @default("{}")
+
+  @@index([status, startedAt])
+}

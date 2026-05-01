@@ -1,0 +1,156 @@
+@import "tailwindcss";
+
+:root {
+  --background: #08090f;
+  --foreground: #eef2f7;
+  --muted: rgba(238, 242, 247, 0.62);
+  --faint: rgba(238, 242, 247, 0.38);
+  --surface: rgba(255, 255, 255, 0.055);
+  --surface-strong: rgba(255, 255, 255, 0.095);
+  --border: rgba(255, 255, 255, 0.11);
+  --border-strong: rgba(255, 255, 255, 0.18);
+  --cyan: #2563eb;
+  --mint: #76e4a7;
+  --amber: #f6ad55;
+  --danger: #fc8181;
+  --radius: 16px;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-muted: var(--muted);
+  --color-cyan: var(--cyan);
+  --color-mint: var(--mint);
+  --color-amber: var(--amber);
+  --color-danger: var(--danger);
+  --font-sans: "Space Grotesk", "Inter", "Segoe UI", system-ui, sans-serif;
+  --font-display: "Syne", "Space Grotesk", "Inter", system-ui, sans-serif;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  min-height: 100vh;
+  background:
+    linear-gradient(120deg, rgba(37, 99, 235, 0.16), transparent 25%, transparent 72%, rgba(118, 228, 167, 0.12)),
+    linear-gradient(180deg, #08090f 0%, #0b0d16 54%, #08090f 100%);
+  color: var(--foreground);
+  font-family: var(--font-sans);
+  overflow-x: hidden;
+}
+
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: -2;
+  background-image:
+    linear-gradient(rgba(255, 255, 255, 0.035) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.035) 1px, transparent 1px);
+  background-size: 44px 44px;
+  mask-image: linear-gradient(to bottom, rgba(0, 0, 0, 0.9), transparent 78%);
+}
+
+body::after {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  background:
+    linear-gradient(90deg, transparent, rgba(37, 99, 235, 0.09), transparent),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.04), transparent 32%);
+  pointer-events: none;
+}
+
+button,
+input,
+textarea,
+select {
+  font: inherit;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+::selection {
+  background: rgba(37, 99, 235, 0.35);
+  color: white;
+}
+
+.glass {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  box-shadow: 0 24px 80px rgba(0, 0, 0, 0.32);
+  backdrop-filter: blur(22px);
+}
+
+.glass-strong {
+  background: var(--surface-strong);
+  border: 1px solid var(--border-strong);
+  box-shadow: 0 28px 100px rgba(0, 0, 0, 0.42);
+  backdrop-filter: blur(28px);
+}
+
+.gradient-text {
+  background: linear-gradient(135deg, var(--cyan), var(--mint));
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+.premium-ring {
+  box-shadow:
+    0 0 0 1px rgba(37, 99, 235, 0.2),
+    0 0 32px rgba(37, 99, 235, 0.18),
+    inset 0 0 42px rgba(118, 228, 167, 0.035);
+}
+
+.dashboard-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.35fr) minmax(320px, 0.65fr);
+  gap: 20px;
+}
+
+.world-grid {
+  background-image:
+    linear-gradient(rgba(255, 255, 255, 0.05) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.05) 1px, transparent 1px);
+  background-size: 28px 28px;
+}
+
+.focus-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(37, 99, 235, 0.5) transparent;
+}
+
+.focus-scrollbar::-webkit-scrollbar {
+  width: 8px;
+}
+
+.focus-scrollbar::-webkit-scrollbar-thumb {
+  background: rgba(37, 99, 235, 0.45);
+  border-radius: 999px;
+}
+
+@media (max-width: 1024px) {
+  .dashboard-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 720px) {
+  body {
+    background:
+      linear-gradient(130deg, rgba(99, 179, 237, 0.13), transparent 42%, rgba(118, 228, 167, 0.1)),
+      #08090f;
+  }
+}

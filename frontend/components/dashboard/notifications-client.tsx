@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Bell, CheckCheck } from "lucide-react";
 import { toast } from "sonner";
 
@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { apiFetch } from "@/lib/api-client";
 import { cn } from "@/lib/cn";
+import { appDataRefreshEvent } from "@/lib/timer-events";
 
 type NotificationDTO = {
   id: string;
@@ -22,6 +23,19 @@ type NotificationDTO = {
 export function NotificationsClient({ initialNotifications }: { initialNotifications: NotificationDTO[] }) {
   const [notifications, setNotifications] = useState(initialNotifications);
   const unread = notifications.filter((notification) => !notification.readAt).length;
+
+  const loadNotifications = useCallback(async () => {
+    const response = await apiFetch("/notifications");
+    if (!response.ok) return;
+    const data = await response.json();
+    setNotifications(data.notifications ?? []);
+  }, []);
+
+  useEffect(() => {
+    void loadNotifications();
+    window.addEventListener(appDataRefreshEvent, loadNotifications);
+    return () => window.removeEventListener(appDataRefreshEvent, loadNotifications);
+  }, [loadNotifications]);
 
   async function markAllRead() {
     const response = await apiFetch("/notifications/read", {

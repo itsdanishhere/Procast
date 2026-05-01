@@ -10,6 +10,7 @@ export const timerRoutes = Router();
 
 timerRoutes.use(authMiddleware);
 timerRoutes.get("/active", timerController.active);
+timerRoutes.get("/sessions", timerController.list);
 timerRoutes.post("/sessions", writeRateLimit, validateBody(startTimerSchema), timerController.start);
 timerRoutes.post("/sessions/:sessionId/pause", writeRateLimit, timerController.pause);
 timerRoutes.post("/sessions/:sessionId/resume", writeRateLimit, timerController.resume);

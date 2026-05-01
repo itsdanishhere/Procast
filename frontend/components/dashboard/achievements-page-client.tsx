@@ -1,14 +1,38 @@
 "use client";
 
+import { useCallback, useEffect, useState } from "react";
 import { Lock, Trophy } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
+import { apiFetch } from "@/lib/api-client";
 import { achievements } from "@/lib/constants";
 import { cn } from "@/lib/cn";
+import { appDataRefreshEvent } from "@/lib/timer-events";
 
 export function AchievementsPageClient({ awards }: { awards: { code: string; awardedAt: string }[] }) {
-  const awardedCodes = new Set(awards.map((award) => award.code));
+  const [currentAwards, setCurrentAwards] = useState(awards);
+  const awardedCodes = new Set(currentAwards.map((award) => award.code));
+
+  const loadAchievements = useCallback(async () => {
+    const response = await apiFetch("/achievements");
+    if (!response.ok) return;
+    const data = await response.json();
+    setCurrentAwards(
+      (data.achievements ?? [])
+        .filter((achievement: any) => achievement.unlocked)
+        .map((achievement: any) => ({
+          code: String(achievement.code),
+          awardedAt: achievement.unlockedAt ?? new Date().toISOString()
+        }))
+    );
+  }, []);
+
+  useEffect(() => {
+    void loadAchievements();
+    window.addEventListener(appDataRefreshEvent, loadAchievements);
+    return () => window.removeEventListener(appDataRefreshEvent, loadAchievements);
+  }, [loadAchievements]);
 
   return (
     <div className="space-y-6">
@@ -23,7 +47,7 @@ export function AchievementsPageClient({ awards }: { awards: { code: string; awa
           </div>
           <Badge className="border-amber/25 bg-amber/10 text-amber">
             <Trophy className="h-3.5 w-3.5" />
-            {awards.length}/{achievements.length} unlocked
+            {currentAwards.length}/{achievements.length} unlocked
           </Badge>
         </div>
       </Card>
@@ -32,7 +56,7 @@ export function AchievementsPageClient({ awards }: { awards: { code: string; awa
         {achievements.map((achievement) => {
           const Icon = achievement.icon;
           const unlocked = awardedCodes.has(achievement.code);
-          const award = awards.find((item) => item.code === achievement.code);
+          const award = currentAwards.find((item) => item.code === achievement.code);
           return (
             <Card
               key={achievement.code}

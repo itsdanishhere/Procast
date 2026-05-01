@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Activity, Clock3, Flame, Sparkles } from "lucide-react";
 
 import { ReflectionModal } from "@/components/dashboard/reflection-modal";
@@ -9,8 +9,9 @@ import { TimerEngine } from "@/components/dashboard/timer-engine";
 import { WorldProgressCard } from "@/components/dashboard/world-progress-card";
 import { Card } from "@/components/ui/card";
 import { apiFetch } from "@/lib/api-client";
+import { fetchRecentSessions, fetchTasks } from "@/lib/live-data";
 import { emitProgressUpdate, normalizeProgress } from "@/lib/progress-dto";
-import { timerSessionSavedEvent, type TimerSessionSavedDetail } from "@/lib/timer-events";
+import { appDataRefreshEvent, timerSessionSavedEvent, type TimerSessionSavedDetail } from "@/lib/timer-events";
 import type { ProgressDTO, SessionDTO, SettingsDTO, TaskDTO } from "@/lib/types";
 
 function isToday(value: string) {
@@ -54,37 +55,41 @@ export function DashboardClient({
     });
   }
 
-  useEffect(() => {
-    async function loadDashboard() {
-      try {
-        const [tasksRes, meRes, analyticsRes] = await Promise.all([
-          apiFetch("/tasks"),
-          apiFetch("/users/me"),
-          apiFetch("/analytics/dashboard")
-        ]);
-        
-        if (tasksRes.ok && meRes.ok) {
-          const tasksData = await tasksRes.json();
-          const meData = await meRes.json();
-          setTasks(tasksData.tasks || []);
-          
-          // Merge streak data into progress for frontend compatibility
-          const mergedProgress = normalizeProgress(meData.user.progress, meData.user.streak, initialProgress);
-          setProgress(mergedProgress);
-          emitProgressUpdate(mergedProgress);
-        }
-        if (analyticsRes.ok) {
-          const analyticsData = await analyticsRes.json();
-          const todayKey = new Date().toISOString().slice(0, 10);
-          const today = analyticsData.daily?.find((item: { day: string }) => item.day === todayKey) ?? analyticsData.daily?.at(-1);
-          setTodayCompletedCount((current) => Math.max(current, today?.completedSessions ?? 0));
-        }
-      } catch (e) {
-        console.error("Dashboard load failed", e);
+  const loadDashboard = useCallback(async () => {
+    try {
+      const [tasksData, sessionsData, meRes, analyticsRes] = await Promise.all([
+        fetchTasks(),
+        fetchRecentSessions(10),
+        apiFetch("/users/me"),
+        apiFetch("/analytics/dashboard")
+      ]);
+
+      setTasks(tasksData);
+      setSessions(sessionsData);
+      setTodayCompletedCount(countCompletedToday(sessionsData));
+
+      if (meRes.ok) {
+        const meData = await meRes.json();
+        const mergedProgress = normalizeProgress(meData.user.progress, meData.user.streak, initialProgress);
+        setProgress(mergedProgress);
+        emitProgressUpdate(mergedProgress);
       }
+      if (analyticsRes.ok) {
+        const analyticsData = await analyticsRes.json();
+        const todayKey = new Date().toISOString().slice(0, 10);
+        const today = analyticsData.daily?.find((item: { day: string }) => item.day === todayKey) ?? analyticsData.daily?.at(-1);
+        setTodayCompletedCount((current) => Math.max(current, today?.completedSessions ?? today?.sessions ?? 0));
+      }
+    } catch (e) {
+      console.error("Dashboard load failed", e);
     }
-    loadDashboard();
-  }, []);
+  }, [initialProgress]);
+
+  useEffect(() => {
+    void loadDashboard();
+    window.addEventListener(appDataRefreshEvent, loadDashboard);
+    return () => window.removeEventListener(appDataRefreshEvent, loadDashboard);
+  }, [loadDashboard]);
 
   useEffect(() => {
     function handleSavedSession(event: Event) {
@@ -93,9 +98,16 @@ export function DashboardClient({
       if (nextProgress) setProgress(nextProgress);
       if (session.status === "COMPLETED") setReflectionSessionId(session.id);
     }
+    function handleProgress(event: Event) {
+      setProgress((event as CustomEvent<ProgressDTO>).detail);
+    }
 
     window.addEventListener(timerSessionSavedEvent, handleSavedSession);
-    return () => window.removeEventListener(timerSessionSavedEvent, handleSavedSession);
+    window.addEventListener("procast:progress-updated", handleProgress);
+    return () => {
+      window.removeEventListener(timerSessionSavedEvent, handleSavedSession);
+      window.removeEventListener("procast:progress-updated", handleProgress);
+    };
   }, []);
 
   return (

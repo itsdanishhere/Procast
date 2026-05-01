@@ -11,6 +11,7 @@ import { apiFetch } from "@/lib/api-client";
 import { appNav } from "@/lib/constants";
 import { cn } from "@/lib/cn";
 import { normalizeProgress } from "@/lib/progress-dto";
+import { appDataRefreshEvent } from "@/lib/timer-events";
 import type { ProgressDTO } from "@/lib/types";
 
 type ShellUser = {
@@ -45,6 +46,8 @@ export function AppShell({ user: initialUser, children }: { user: ShellUser; chi
       }
     }
     loadUser();
+    window.addEventListener(appDataRefreshEvent, loadUser);
+    return () => window.removeEventListener(appDataRefreshEvent, loadUser);
   }, [initialUser.progress, router]);
 
   useEffect(() => {

@@ -9,6 +9,8 @@ import { Button } from "@/components/ui/button";
 import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { apiFetch } from "@/lib/api-client";
+import { fetchAndEmitCurrentProgress, normalizeTask } from "@/lib/live-data";
+import { emitAppDataRefresh } from "@/lib/timer-events";
 import type { TaskDTO } from "@/lib/types";
 import { cn } from "@/lib/cn";
 
@@ -54,18 +56,11 @@ export function TaskManager({ tasks, onTasksChange }: { tasks: TaskDTO[]; onTask
       return;
     }
 
-    onTasksChange([
-      {
-        ...data.task,
-        dueDate: data.task.dueDate,
-        completedAt: data.task.completedAt,
-        createdAt: data.task.createdAt
-      },
-      ...tasks
-    ]);
+    onTasksChange([normalizeTask(data.task), ...tasks]);
     setTitle("");
     setAvoidance("");
     setTags("");
+    emitAppDataRefresh("task-created");
     toast.success("Task added. Avoidance is now visible.");
   }
 
@@ -82,8 +77,14 @@ export function TaskManager({ tasks, onTasksChange }: { tasks: TaskDTO[]; onTask
       return;
     }
 
-    onTasksChange(tasks.map((task) => (task.id === taskId ? { ...task, ...data.task } : task)));
-    if (payload.status === "COMPLETED") toast.success("Task completed. +12 XP added.");
+    onTasksChange(tasks.map((task) => (task.id === taskId ? normalizeTask(data.task) : task)));
+    if (payload.status === "COMPLETED") {
+      await fetchAndEmitCurrentProgress();
+      emitAppDataRefresh("task-completed");
+      toast.success("Task completed. +12 XP added.");
+    } else {
+      emitAppDataRefresh("task-updated");
+    }
   }
 
   async function deleteTask(taskId: string) {
@@ -96,6 +97,7 @@ export function TaskManager({ tasks, onTasksChange }: { tasks: TaskDTO[]; onTask
       return;
     }
     onTasksChange(tasks.filter((task) => task.id !== taskId));
+    emitAppDataRefresh("task-deleted");
   }
 
   return (

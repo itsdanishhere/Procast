@@ -12,6 +12,12 @@ export class TimerController {
     response.json({ session });
   });
 
+  list = asyncHandler(async (request, response) => {
+    const limit = Number(request.query.limit ?? 25);
+    const sessions = await timerService.list(request.auth!.userId, Number.isFinite(limit) ? limit : 25);
+    response.json({ sessions });
+  });
+
   pause = asyncHandler(async (request, response) => {
     const session = await timerService.pause(request.auth!.userId, String(request.params.sessionId));
     response.json({ session });

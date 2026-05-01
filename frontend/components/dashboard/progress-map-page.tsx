@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import { ArrowRight, Lock, ShieldCheck, Sparkles } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
@@ -9,12 +10,37 @@ import { getNextStage, getStageProgressPercent, getXpToNextLevel } from "@/lib/p
 import { worldStages } from "@/lib/constants";
 import type { ProgressDTO } from "@/lib/types";
 import { cn } from "@/lib/cn";
+import { fetchCurrentUserProgress } from "@/lib/live-data";
+import { appDataRefreshEvent } from "@/lib/timer-events";
 
 export function ProgressMapPage({ progress }: { progress: ProgressDTO }) {
-  const totalXp = progress.totalXp ?? 0;
-  const currentLevel = progress.currentLevel ?? 1;
+  const [currentProgress, setCurrentProgress] = useState(progress);
+  const totalXp = currentProgress.totalXp ?? 0;
+  const currentLevel = currentProgress.currentLevel ?? 1;
   const next = getNextStage(totalXp);
   const percent = getStageProgressPercent(totalXp);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadProgress() {
+      const latest = await fetchCurrentUserProgress(progress);
+      if (!cancelled && latest) setCurrentProgress(latest);
+    }
+
+    function handleProgress(event: Event) {
+      setCurrentProgress((event as CustomEvent<ProgressDTO>).detail);
+    }
+
+    void loadProgress();
+    window.addEventListener("procast:progress-updated", handleProgress);
+    window.addEventListener(appDataRefreshEvent, loadProgress);
+    return () => {
+      cancelled = true;
+      window.removeEventListener("procast:progress-updated", handleProgress);
+      window.removeEventListener(appDataRefreshEvent, loadProgress);
+    };
+  }, [progress]);
 
   return (
     <div className="space-y-6">
@@ -38,8 +64,8 @@ export function ProgressMapPage({ progress }: { progress: ProgressDTO }) {
         <div className="world-grid p-6">
           <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
             {worldStages.map((stage, index) => {
-              const unlocked = stage.level <= progress.unlockedStage;
-              const protectedStage = stage.level <= progress.lockedStage;
+              const unlocked = stage.level <= currentProgress.unlockedStage;
+              const protectedStage = stage.level <= currentProgress.lockedStage;
               const current = stage.level === currentLevel;
               return (
                 <div key={stage.level} className="relative">
@@ -107,8 +133,8 @@ export function ProgressMapPage({ progress }: { progress: ProgressDTO }) {
         <Card>
           <p className="text-sm font-extrabold uppercase tracking-[0.18em] text-amber">Current pressure</p>
           <p className="mt-3 text-sm leading-6 text-muted">
-            {progress.lockStrikes > 0
-              ? `${progress.lockStrikes} lock strike detected. Show up today to stabilize your world.`
+            {currentProgress.lockStrikes > 0
+              ? `${currentProgress.lockStrikes} lock strike detected. Show up today to stabilize your world.`
               : "No lock strikes. Your world is stable, but only completed sessions keep it that way."}
           </p>
         </Card>

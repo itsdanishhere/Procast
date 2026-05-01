@@ -26,12 +26,12 @@ export class AchievementService {
   }
 
   async evaluate(userId: string, tx: DbClient = prisma) {
-    const [completedSessions, deepSessions, progress, streak] = await Promise.all([
-      tx.focusSession.count({ where: { userId, status: "COMPLETED" } }),
-      tx.focusSession.count({ where: { userId, status: "COMPLETED", mode: { in: ["DEEP_FOCUS_45", "DEEP_FOCUS_60"] } } }),
-      tx.userProgress.findUnique({ where: { userId } }),
-      tx.userStreak.findUnique({ where: { userId } })
-    ]);
+    const completedSessions = await tx.focusSession.count({ where: { userId, status: "COMPLETED" } });
+    const deepSessions = await tx.focusSession.count({
+      where: { userId, status: "COMPLETED", mode: { in: ["DEEP_FOCUS_45", "DEEP_FOCUS_60"] } }
+    });
+    const progress = await tx.userProgress.findUnique({ where: { userId } });
+    const streak = await tx.userStreak.findUnique({ where: { userId } });
 
     const eligible = new Set<string>();
     if (completedSessions >= 1) eligible.add("first_session");

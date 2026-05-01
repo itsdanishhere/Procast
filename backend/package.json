@@ -7,7 +7,7 @@
   "scripts": {
     "dev": "tsx watch src/server.ts",
     "worker": "tsx watch src/workers/index.ts",
-    "build": "prisma generate && tsup src/server.ts src/workers/index.ts src/scripts/seed.ts --format esm --dts --clean",
+    "build": "prisma generate && tsup src/server.ts src/workers/index.ts src/scripts/seed.ts --format esm --dts --clean --tsconfig tsconfig.build.json",
     "start": "node dist/server.js",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",

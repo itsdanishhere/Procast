@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Bell, Headphones, Save, ShieldAlert, UserCircle } from "lucide-react";
 import { toast } from "sonner";
 
@@ -9,6 +9,8 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { apiFetch } from "@/lib/api-client";
+import { fetchCurrentUserSettings, normalizeSettings } from "@/lib/live-data";
+import { emitAppDataRefresh } from "@/lib/timer-events";
 import type { SettingsDTO } from "@/lib/types";
 
 export function SettingsClient({
@@ -18,8 +20,25 @@ export function SettingsClient({
   user: { fullName: string; email: string; username: string; emailVerified: boolean };
   initialSettings: SettingsDTO;
 }) {
+  const [profile, setProfile] = useState(user);
   const [settings, setSettings] = useState(initialSettings);
   const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    async function loadSettings() {
+      const data = await fetchCurrentUserSettings(initialSettings);
+      if (!data.user) return;
+      setProfile({
+        fullName: data.user.profile?.fullName || data.user.username,
+        email: data.user.email,
+        username: data.user.username,
+        emailVerified: Boolean(data.user.emailVerified)
+      });
+      setSettings(data.settings);
+    }
+
+    void loadSettings();
+  }, [initialSettings]);
 
   function update<K extends keyof SettingsDTO>(key: K, value: SettingsDTO[K]) {
     setSettings((current) => ({ ...current, [key]: value }));
@@ -40,7 +59,8 @@ export function SettingsClient({
       return;
     }
 
-    setSettings(data.settings);
+    setSettings(normalizeSettings(data.settings, undefined, settings));
+    emitAppDataRefresh("settings-saved");
     toast.success("Settings saved.");
   }
 
@@ -52,19 +72,19 @@ export function SettingsClient({
             <UserCircle className="h-9 w-9" />
           </div>
           <div>
-            <h2 className="font-display text-2xl font-extrabold">{user.fullName}</h2>
-            <p className="text-sm text-muted">@{user.username}</p>
+            <h2 className="font-display text-2xl font-extrabold">{profile.fullName}</h2>
+            <p className="text-sm text-muted">@{profile.username}</p>
           </div>
         </div>
         <div className="space-y-3 text-sm">
           <div className="flex justify-between rounded-2xl border border-white/10 bg-white/[0.04] p-4">
             <span className="text-muted">Email</span>
-            <span className="font-bold">{user.email}</span>
+            <span className="font-bold">{profile.email}</span>
           </div>
           <div className="flex justify-between rounded-2xl border border-white/10 bg-white/[0.04] p-4">
             <span className="text-muted">Verification</span>
-            <Badge className={user.emailVerified ? "border-mint/25 bg-mint/10 text-mint" : "border-amber/25 bg-amber/10 text-amber"}>
-              {user.emailVerified ? "Verified" : "Ready"}
+            <Badge className={profile.emailVerified ? "border-mint/25 bg-mint/10 text-mint" : "border-amber/25 bg-amber/10 text-amber"}>
+              {profile.emailVerified ? "Verified" : "Ready"}
             </Badge>
           </div>
         </div>

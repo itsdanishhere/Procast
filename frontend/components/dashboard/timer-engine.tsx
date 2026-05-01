@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Bell, Headphones, Pause, Play, RotateCcw, ShieldAlert } from "lucide-react";
 import { toast } from "sonner";
 
@@ -29,6 +29,15 @@ export function TimerEngine({ tasks, settings, onSessionSaved }: TimerEngineProp
   const [selectedTaskId, setSelectedTaskId] = useState<string>("");
   const [loading, setLoading] = useState(false);
   const [confirmExit, setConfirmExit] = useState(false);
+  const heartbeatInFlight = useRef(false);
+  const heartbeatAuthWarningShown = useRef(false);
+  const timerStatusRef = useRef(timer.status);
+  const timerDurationRef = useRef(timer.durationSeconds);
+  const timerRemainingRef = useRef(timer.remainingSeconds);
+
+  timerStatusRef.current = timer.status;
+  timerDurationRef.current = timer.durationSeconds;
+  timerRemainingRef.current = timer.remainingSeconds;
 
   const selectedTask = tasks.find((task) => task.id === selectedTaskId) ?? null;
   const timerActive = timer.status === "running" || timer.status === "paused";
@@ -50,6 +59,45 @@ export function TimerEngine({ tasks, settings, onSessionSaved }: TimerEngineProp
     const interval = window.setInterval(timer.tick, 500);
     return () => window.clearInterval(interval);
   }, [timer.tick]);
+
+  useEffect(() => {
+    if (timer.status !== "running" || !timer.backendSessionId) return;
+
+    let cancelled = false;
+
+    async function sendHeartbeat() {
+      if (cancelled || heartbeatInFlight.current || timerStatusRef.current !== "running" || !timer.backendSessionId) {
+        return;
+      }
+      heartbeatInFlight.current = true;
+      try {
+        const response = await apiFetch(`/timer/sessions/${timer.backendSessionId}/heartbeat`, {
+          method: "POST",
+          body: JSON.stringify({
+            clientTime: new Date().toISOString(),
+            accumulatedFocusSeconds: Math.max(0, timerDurationRef.current - timerRemainingRef.current)
+          })
+        });
+
+        if (!response.ok && response.status === 401 && !heartbeatAuthWarningShown.current) {
+          heartbeatAuthWarningShown.current = true;
+          toast.error("Your session expired. Please log in again to keep focus progression synced.");
+        }
+      } finally {
+        heartbeatInFlight.current = false;
+      }
+    }
+
+    void sendHeartbeat();
+    const interval = window.setInterval(() => {
+      void sendHeartbeat();
+    }, 15000);
+
+    return () => {
+      cancelled = true;
+      window.clearInterval(interval);
+    };
+  }, [timer.backendSessionId, timer.status]);
 
   useEffect(() => {
     function beforeUnload(event: BeforeUnloadEvent) {
@@ -195,6 +243,50 @@ export function TimerEngine({ tasks, settings, onSessionSaved }: TimerEngineProp
     timer.reset();
   }
 
+  async function pauseTimer() {
+    if (timer.status !== "running") return;
+    if (!timer.backendSessionId) {
+      timer.pause();
+      return;
+    }
+
+    const response = await apiFetch(`/timer/sessions/${timer.backendSessionId}/pause`, {
+      method: "POST",
+      body: JSON.stringify({})
+    });
+    if (!response.ok) {
+      toast.error("Could not pause backend timer.");
+      return;
+    }
+    timer.pause();
+  }
+
+  async function resumeTimer() {
+    if (timer.status !== "paused") return;
+    if (!timer.backendSessionId) {
+      timer.resume();
+      return;
+    }
+
+    const response = await apiFetch(`/timer/sessions/${timer.backendSessionId}/resume`, {
+      method: "POST",
+      body: JSON.stringify({})
+    });
+    if (!response.ok) {
+      toast.error("Could not resume backend timer.");
+      return;
+    }
+    timer.resume();
+  }
+
+  function handleReset() {
+    if (timer.status === "running" || timer.status === "paused") {
+      setConfirmExit(true);
+      return;
+    }
+    timer.reset();
+  }
+
   return (
     <Card className="p-6">
       <CardHeader>
@@ -300,12 +392,12 @@ export function TimerEngine({ tasks, settings, onSessionSaved }: TimerEngineProp
           <Progress value={progressPercent} className="mb-5 h-2.5" />
           <div className="flex flex-wrap gap-3">
             {timer.status === "running" ? (
-              <Button variant="secondary" onClick={timer.pause}>
+              <Button variant="secondary" onClick={() => void pauseTimer()}>
                 <Pause className="h-4 w-4" />
                 Pause
               </Button>
             ) : timer.status === "paused" ? (
-              <Button onClick={timer.resume}>
+              <Button onClick={() => void resumeTimer()}>
                 <Play className="h-4 w-4" />
                 Resume
               </Button>
@@ -315,7 +407,7 @@ export function TimerEngine({ tasks, settings, onSessionSaved }: TimerEngineProp
                 {loading ? "Starting..." : "Start Focus"}
               </Button>
             )}
-            <Button variant="secondary" size="lg" className="rounded-full px-6 font-bold" onClick={() => timer.reset()}>
+            <Button variant="secondary" size="lg" className="rounded-full px-6 font-bold" onClick={handleReset}>
               <RotateCcw className="h-4 w-4" />
               Reset
             </Button>

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import {
   Area,
   AreaChart,
@@ -16,6 +16,7 @@ import { BarChart3, CheckCircle2, Clock3, Flame, Sparkles } from "lucide-react";
 
 import { Card } from "@/components/ui/card";
 import { apiFetch } from "@/lib/api-client";
+import { appDataRefreshEvent } from "@/lib/timer-events";
 
 type AnalyticsData = {
   summary: {
@@ -36,11 +37,39 @@ type AnalyticsData = {
 export function AnalyticsClient() {
   const [data, setData] = useState<AnalyticsData | null>(null);
 
-  useEffect(() => {
-    void apiFetch("/analytics/dashboard")
-      .then((response) => response.json())
-      .then(setData);
+  const loadAnalytics = useCallback(async () => {
+    const response = await apiFetch("/analytics/dashboard");
+    if (!response.ok) return;
+    const payload = await response.json();
+    setData({
+      summary: {
+        totalFocusMinutes: Number(payload.summary?.totalFocusMinutes ?? 0),
+        completedSessions: Number(payload.summary?.completedSessions ?? 0),
+        completedTasks: Number(payload.summary?.completedTasks ?? 0),
+        activeTasks: Number(payload.summary?.activeTasks ?? 0),
+        dailyStreak: Number(payload.summary?.dailyStreak ?? 0),
+        bestStreak: Number(payload.summary?.bestStreak ?? payload.summary?.bestDailyStreak ?? 0),
+        xp: Number(payload.summary?.xp ?? payload.summary?.totalXp ?? 0)
+      },
+      daily: (payload.daily ?? []).map((item: any) => ({
+        day: String(item.day),
+        minutes: Number(item.minutes ?? Math.round(Number(item.focusSeconds ?? 0) / 60)),
+        sessions: Number(item.sessions ?? item.completedSessions ?? 0)
+      })),
+      bestHours: (payload.bestHours ?? []).map((item: any) => ({
+        hour: String(item.hour),
+        score: Number(item.score ?? 0)
+      })),
+      taskTrend: payload.taskTrend ?? { completed: 0, active: 0, archived: 0 },
+      insights: payload.insights ?? []
+    });
   }, []);
+
+  useEffect(() => {
+    void loadAnalytics();
+    window.addEventListener(appDataRefreshEvent, loadAnalytics);
+    return () => window.removeEventListener(appDataRefreshEvent, loadAnalytics);
+  }, [loadAnalytics]);
 
   if (!data || !data.summary) {
     return (
@@ -55,7 +84,7 @@ export function AnalyticsClient() {
     { label: "Focus minutes", value: data.summary.totalFocusMinutes, icon: Clock3, color: "text-cyan" },
     { label: "Sessions", value: data.summary.completedSessions, icon: BarChart3, color: "text-mint" },
     { label: "Tasks done", value: data.summary.completedTasks, icon: CheckCircle2, color: "text-amber" },
-    { label: "Best streak", value: `${data.summary.bestStreak}d`, icon: Flame, color: "text-danger" },
+    { label: "Best streak", value: `${data.summary.bestStreak ?? 0}d`, icon: Flame, color: "text-danger" },
     { label: "Total XP", value: data.summary.xp, icon: Sparkles, color: "text-cyan" }
   ];
 

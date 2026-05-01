@@ -25,10 +25,8 @@ function computeAccumulatedSeconds(session: {
 
 export class TimerService {
   private async progressSnapshot(userId: string, tx: DbClient = prisma) {
-    const [progress, streak] = await Promise.all([
-      tx.userProgress.findUnique({ where: { userId } }),
-      tx.userStreak.findUnique({ where: { userId } })
-    ]);
+    const progress = await tx.userProgress.findUnique({ where: { userId } });
+    const streak = await tx.userStreak.findUnique({ where: { userId } });
 
     return { progress, streak };
   }
@@ -140,6 +138,31 @@ export class TimerService {
       include: { task: true },
       orderBy: { createdAt: "desc" }
     });
+  }
+
+  async list(userId: string, limit = 25) {
+    const sessions = await prisma.focusSession.findMany({
+      where: { userId, deletedAt: null },
+      include: {
+        task: { select: { title: true } },
+        xpEntries: { where: { reversedAt: null }, select: { amount: true } }
+      },
+      orderBy: { createdAt: "desc" },
+      take: Math.min(Math.max(limit, 1), 100)
+    });
+
+    return sessions.map((session) => ({
+      id: session.id,
+      taskId: session.taskId,
+      mode: session.mode,
+      status: session.status,
+      durationMinutes: Math.round(session.plannedSeconds / 60),
+      actualSeconds: session.accumulatedFocusSeconds,
+      xpEarned: session.xpEntries.reduce((sum, entry) => sum + entry.amount, 0),
+      startedAt: session.startedAt ?? session.createdAt,
+      endedAt: session.completedAt ?? session.abandonedAt ?? session.updatedAt,
+      task: session.task
+    }));
   }
 
   async pause(userId: string, sessionId: string) {

@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useState } from "react";
+import { FormEvent, useCallback, useEffect, useState } from "react";
 import { BookOpen, Plus } from "lucide-react";
 import { toast } from "sonner";
 
@@ -8,12 +8,28 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
 import { apiFetch } from "@/lib/api-client";
+import { fetchAndEmitCurrentProgress, fetchReflections, normalizeReflection } from "@/lib/live-data";
+import { appDataRefreshEvent, emitReflectionSaved, reflectionSavedEvent } from "@/lib/timer-events";
 import type { ReflectionDTO } from "@/lib/types";
 
 export function JournalClient({ initialReflections }: { initialReflections: ReflectionDTO[] }) {
   const [reflections, setReflections] = useState(initialReflections);
   const [form, setForm] = useState({ distraction: "", wentWell: "", improve: "" });
   const [loading, setLoading] = useState(false);
+
+  const loadReflections = useCallback(async () => {
+    setReflections(await fetchReflections());
+  }, []);
+
+  useEffect(() => {
+    void loadReflections();
+    window.addEventListener(appDataRefreshEvent, loadReflections);
+    window.addEventListener(reflectionSavedEvent, loadReflections);
+    return () => {
+      window.removeEventListener(appDataRefreshEvent, loadReflections);
+      window.removeEventListener(reflectionSavedEvent, loadReflections);
+    };
+  }, [loadReflections]);
 
   function update(field: keyof typeof form, value: string) {
     setForm((current) => ({ ...current, [field]: value }));
@@ -39,8 +55,10 @@ export function JournalClient({ initialReflections }: { initialReflections: Refl
       return;
     }
 
-    setReflections([{ ...data.reflection, createdAt: data.reflection.createdAt }, ...reflections]);
+    setReflections((current) => [normalizeReflection(data.reflection), ...current.filter((item) => item.id !== data.reflection.id)]);
     setForm({ distraction: "", wentWell: "", improve: "" });
+    await fetchAndEmitCurrentProgress();
+    emitReflectionSaved();
     toast.success("Reflection saved.");
   }
 

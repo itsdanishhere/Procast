@@ -7,6 +7,8 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { apiFetch } from "@/lib/api-client";
+import { fetchAndEmitCurrentProgress } from "@/lib/live-data";
+import { emitReflectionSaved } from "@/lib/timer-events";
 
 export function ReflectionModal({
   open,
@@ -48,6 +50,8 @@ export function ReflectionModal({
     }
 
     toast.success("Reflection saved. +8 XP for self-awareness.");
+    await fetchAndEmitCurrentProgress();
+    emitReflectionSaved();
     setForm({ distraction: "", wentWell: "", improve: "" });
     onClose();
   }

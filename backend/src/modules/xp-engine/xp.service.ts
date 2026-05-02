@@ -5,10 +5,7 @@ import { worldProgressionService } from "../world-progression/world.service";
 
 export class XpService {
   sessionXp(mode: string, plannedSeconds: number) {
-    if (mode === "SHORT_BREAK" || mode === "LONG_BREAK") {
-      return 0;
-    }
-    // Global standard: 1 XP per 1 minute of focus
+    // Global standard: 1 XP per 1 completed minute.
     return Math.floor(plannedSeconds / 60);
   }
 

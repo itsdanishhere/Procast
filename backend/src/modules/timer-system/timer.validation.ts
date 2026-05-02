@@ -6,7 +6,8 @@ export const startTimerSchema = z.object({
   plannedSeconds: z.number().int().min(60).max(4 * 60 * 60),
   clientStartedAt: z.string().datetime().optional(),
   idempotencyKey: z.string().min(12).max(160),
-  replaceExisting: z.boolean().default(false)
+  replaceExisting: z.boolean().default(false),
+  isStopwatch: z.boolean().default(false)
 });
 
 export const sessionIdSchema = z.object({

@@ -10,6 +10,12 @@ function isActiveStatus(status: string) {
   return status === "CREATED" || status === "RUNNING" || status === "PAUSED";
 }
 
+function isStopwatchSession(session: { antiCheatFlags: unknown }) {
+  return Array.isArray(session.antiCheatFlags)
+    ? session.antiCheatFlags.some((flag) => flag && typeof flag === "object" && (flag as { type?: unknown }).type === "stopwatch_mode")
+    : false;
+}
+
 function computeAccumulatedSeconds(session: {
   status: string;
   startedAt: Date | null;
@@ -39,6 +45,7 @@ export class TimerService {
     clientStartedAt?: string;
     idempotencyKey: string;
     replaceExisting?: boolean;
+    isStopwatch?: boolean;
   }) {
     return prisma.$transaction(async (tx) => {
       const existingByKey = await tx.focusSession.findUnique({
@@ -111,10 +118,19 @@ export class TimerService {
           status: "RUNNING",
           plannedSeconds: input.plannedSeconds,
           startedAt: now,
-          expectedEndAt: new Date(now.getTime() + input.plannedSeconds * 1000),
+          expectedEndAt: input.isStopwatch ? null : new Date(now.getTime() + input.plannedSeconds * 1000),
           lastHeartbeatAt: now,
           clientStartedAt: input.clientStartedAt ? new Date(input.clientStartedAt) : undefined,
-          idempotencyKey: input.idempotencyKey
+          idempotencyKey: input.idempotencyKey,
+          antiCheatFlags: input.isStopwatch
+            ? [
+                {
+                  type: "stopwatch_mode",
+                  reason: "Open-ended stopwatch session; completion uses server-confirmed elapsed time.",
+                  at: now.toISOString()
+                }
+              ]
+            : undefined
         }
       });
 
@@ -124,7 +140,7 @@ export class TimerService {
           focusSessionId: session.id,
           eventType: "STARTED",
           clientTime: input.clientStartedAt ? new Date(input.clientStartedAt) : undefined,
-          metadata: { mode: input.mode }
+          metadata: { mode: input.mode, isStopwatch: Boolean(input.isStopwatch) }
         }
       });
 
@@ -155,7 +171,7 @@ export class TimerService {
     return sessions.map((session) => ({
       id: session.id,
       taskId: session.taskId,
-      mode: session.mode,
+      mode: isStopwatchSession(session) ? "STOPWATCH" : session.mode,
       status: session.status,
       durationMinutes: Math.round(session.plannedSeconds / 60),
       actualSeconds: session.accumulatedFocusSeconds,
@@ -197,13 +213,14 @@ export class TimerService {
       if (session.status !== "PAUSED") throw badRequest("Only paused sessions can be resumed.");
       const now = new Date();
       const remaining = Math.max(0, session.plannedSeconds - session.accumulatedFocusSeconds);
+      const isStopwatch = isStopwatchSession(session);
       const updated = await tx.focusSession.update({
         where: { id: sessionId },
         data: {
           status: "RUNNING",
           startedAt: now,
           pausedAt: null,
-          expectedEndAt: new Date(now.getTime() + remaining * 1000),
+          expectedEndAt: isStopwatch ? null : new Date(now.getTime() + remaining * 1000),
           lastHeartbeatAt: now
         }
       });
@@ -253,9 +270,12 @@ export class TimerService {
       if (!session) throw notFound("Focus session not found.");
       if (!isActiveStatus(session.status)) throw badRequest("Session cannot be completed.");
 
-      const accumulatedFocusSeconds = Math.min(session.plannedSeconds, computeAccumulatedSeconds(session));
+      const isStopwatch = isStopwatchSession(session);
+      const serverAccumulatedSeconds = computeAccumulatedSeconds(session);
+      const accumulatedFocusSeconds = isStopwatch ? serverAccumulatedSeconds : Math.min(session.plannedSeconds, serverAccumulatedSeconds);
+      const completedPlannedSeconds = isStopwatch ? Math.max(1, accumulatedFocusSeconds) : session.plannedSeconds;
       const minimumTrustSeconds = Math.floor(session.plannedSeconds * 0.9);
-      if (session.mode !== "SHORT_BREAK" && session.mode !== "LONG_BREAK" && accumulatedFocusSeconds < minimumTrustSeconds) {
+      if (!isStopwatch && session.mode !== "SHORT_BREAK" && session.mode !== "LONG_BREAK" && accumulatedFocusSeconds < minimumTrustSeconds) {
         throw badRequest("Timer completion rejected. Server-confirmed focus time is too short.");
       }
 
@@ -264,6 +284,7 @@ export class TimerService {
         where: { id: sessionId },
         data: {
           status: "COMPLETED",
+          plannedSeconds: completedPlannedSeconds,
           accumulatedFocusSeconds,
           completedAt,
           lastHeartbeatAt: completedAt
@@ -273,7 +294,7 @@ export class TimerService {
         data: { userId, focusSessionId: sessionId, eventType: "COMPLETED", metadata: { accumulatedFocusSeconds } }
       });
 
-      const amount = xpService.sessionXp(session.mode, session.plannedSeconds);
+      const amount = xpService.sessionXp(session.mode, completedPlannedSeconds);
       let xpEarned = 0;
       if (amount > 0) {
         await xpService.grantInTransaction(
@@ -295,7 +316,7 @@ export class TimerService {
 
       const snapshot = await this.progressSnapshot(userId, tx);
       return {
-        session: { ...updated, xpEarned },
+        session: { ...updated, mode: isStopwatch ? "STOPWATCH" : updated.mode, xpEarned },
         ...snapshot
       };
     });

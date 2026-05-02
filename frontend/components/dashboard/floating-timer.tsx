@@ -18,6 +18,7 @@ import { externalTimerArmEvent } from "@/lib/timer-events";
 import { formatSeconds, useTimerStore } from "@/lib/timer-store";
 
 type ExternalTimerState = {
+  mode: string;
   label: string;
   taskTitle: string | null;
   remainingSeconds: number;
@@ -36,6 +37,7 @@ type DocumentPiPBindings = {
 export function FloatingTimer() {
   const {
     status,
+    mode,
     label,
     taskTitle,
     remainingSeconds,
@@ -69,6 +71,7 @@ export function FloatingTimer() {
   const focusMusicRef = useRef<FocusMusicStateDetail>(focusMusic);
   const syncTimeoutRef = useRef<number | null>(null);
   const latestRef = useRef<ExternalTimerState>({
+    mode,
     label,
     taskTitle,
     remainingSeconds,
@@ -77,6 +80,7 @@ export function FloatingTimer() {
   });
 
   latestRef.current = {
+    mode,
     label,
     taskTitle,
     remainingSeconds,
@@ -93,7 +97,9 @@ export function FloatingTimer() {
   const drawExternalTimer = useCallback((ctx: CanvasRenderingContext2D) => {
     const latest = latestRef.current;
     const music = focusMusicRef.current;
-    const progress = latest.durationSeconds
+    const progress = latest.mode === "STOPWATCH"
+      ? ((latest.remainingSeconds % 60) / 60) * 100
+      : latest.durationSeconds
       ? ((latest.durationSeconds - latest.remainingSeconds) / latest.durationSeconds) * 100
       : 0;
     const drawRoundedRect = (x: number, y: number, width: number, height: number, radius: number) => {
@@ -243,7 +249,9 @@ export function FloatingTimer() {
     if (!pip) return;
     const latest = latestRef.current;
     const doc = pip.window.document;
-    const progress = latest.durationSeconds
+    const progress = latest.mode === "STOPWATCH"
+      ? ((latest.remainingSeconds % 60) / 60) * 100
+      : latest.durationSeconds
       ? ((latest.durationSeconds - latest.remainingSeconds) / latest.durationSeconds) * 100
       : 0;
 
@@ -850,7 +858,7 @@ export function FloatingTimer() {
     return null;
   }
 
-  const progress = durationSeconds ? ((durationSeconds - remainingSeconds) / durationSeconds) * 100 : 0;
+  const progress = mode === "STOPWATCH" ? ((remainingSeconds % 60) / 60) * 100 : durationSeconds ? ((durationSeconds - remainingSeconds) / durationSeconds) * 100 : 0;
 
   return (
     <div

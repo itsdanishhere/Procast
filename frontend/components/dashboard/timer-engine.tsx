@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Bell, Headphones, Pause, Play, RotateCcw, ShieldAlert } from "lucide-react";
+import { Bell, Headphones, Pause, Play, RotateCcw, ShieldAlert, Square } from "lucide-react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
@@ -70,19 +70,25 @@ export function TimerEngine({ tasks, settings, behavioralInsights, onSessionSave
   const heartbeatInFlight = useRef(false);
   const heartbeatAuthWarningShown = useRef(false);
   const timerStatusRef = useRef(timer.status);
+  const timerModeRef = useRef(timer.mode);
   const timerDurationRef = useRef(timer.durationSeconds);
   const timerRemainingRef = useRef(timer.remainingSeconds);
 
   timerStatusRef.current = timer.status;
+  timerModeRef.current = timer.mode;
   timerDurationRef.current = timer.durationSeconds;
   timerRemainingRef.current = timer.remainingSeconds;
 
   const selectedTask = tasks.find((task) => task.id === selectedTaskId) ?? null;
   const timerActive = timer.status === "running" || timer.status === "paused";
+  const selectedIsStopwatch = selectedMode === "STOPWATCH";
+  const currentTimerIsStopwatch = timer.mode === "STOPWATCH";
   const selectedDuration = selectedMode === "CUSTOM" ? customMinutes : timerModes[selectedMode].minutes;
-  const progressPercent = timer.durationSeconds
-    ? ((timer.durationSeconds - timer.remainingSeconds) / timer.durationSeconds) * 100
-    : 0;
+  const progressPercent = currentTimerIsStopwatch
+    ? ((timer.remainingSeconds % 60) / 60) * 100
+    : timer.durationSeconds
+      ? ((timer.durationSeconds - timer.remainingSeconds) / timer.durationSeconds) * 100
+      : 0;
 
   const modeButtons = useMemo(
     () =>
@@ -113,7 +119,10 @@ export function TimerEngine({ tasks, settings, behavioralInsights, onSessionSave
           method: "POST",
           body: JSON.stringify({
             clientTime: new Date().toISOString(),
-            accumulatedFocusSeconds: Math.max(0, timerDurationRef.current - timerRemainingRef.current)
+            accumulatedFocusSeconds:
+              timerModeRef.current === "STOPWATCH"
+                ? Math.max(0, timerRemainingRef.current)
+                : Math.max(0, timerDurationRef.current - timerRemainingRef.current)
           })
         });
 
@@ -225,7 +234,9 @@ export function TimerEngine({ tasks, settings, behavioralInsights, onSessionSave
     setSelectedMode(mode);
     // Keep active timer state untouched; mode selection only prepares the next session.
     if (timerActive) return;
-    const seconds = mode === "CUSTOM" 
+    const seconds = mode === "STOPWATCH"
+      ? 0
+      : mode === "CUSTOM" 
       ? (parseInt(String(customMinutes)) || 0) * 60 
       : timerModes[mode].minutes * 60;
     timer.setModeAndDuration(mode, timerModes[mode].label, seconds);
@@ -240,12 +251,14 @@ export function TimerEngine({ tasks, settings, behavioralInsights, onSessionSave
     }
 
     setLoading(true);
-    const backendMode = selectedMode === "DEEP_FOCUS" ? "DEEP_FOCUS_45" : selectedMode;
-    const plannedSeconds = selectedMode === "CUSTOM" 
+    const backendMode = selectedMode === "DEEP_FOCUS" ? "DEEP_FOCUS_45" : selectedMode === "STOPWATCH" ? "CUSTOM" : selectedMode;
+    const plannedSeconds = selectedMode === "STOPWATCH"
+      ? 60
+      : selectedMode === "CUSTOM" 
       ? (parseInt(String(customMinutes)) || 0) * 60 
       : timerModes[selectedMode].minutes * 60;
 
-    if (plannedSeconds < 60) {
+    if (selectedMode !== "STOPWATCH" && plannedSeconds < 60) {
       toast.error("Minimum focus time is 1 minute.");
       setLoading(false);
       return;
@@ -259,7 +272,8 @@ export function TimerEngine({ tasks, settings, behavioralInsights, onSessionSave
         plannedSeconds,
         clientStartedAt: new Date().toISOString(),
         idempotencyKey: `start-${Date.now()}`,
-        replaceExisting: true
+        replaceExisting: true,
+        isStopwatch: selectedMode === "STOPWATCH"
       })
     });
     const data = await response.json();
@@ -285,7 +299,7 @@ export function TimerEngine({ tasks, settings, behavioralInsights, onSessionSave
     timer.start({
       mode: selectedMode,
       label: timerModes[selectedMode].label,
-      durationSeconds: plannedSeconds,
+      durationSeconds: selectedMode === "STOPWATCH" ? 0 : plannedSeconds,
       taskId: selectedTaskId || undefined,
       taskTitle: tasks.find(t => t.id === selectedTaskId)?.title || undefined,
       backendSessionId: data.session.id
@@ -293,6 +307,17 @@ export function TimerEngine({ tasks, settings, behavioralInsights, onSessionSave
     emitFocusMusicCommand({ action: "resume-or-start" });
     
     toast.success("Focus mode started. Your world is on the line.");
+  }
+
+  async function finishStopwatch() {
+    if (endingSession || !currentTimerIsStopwatch) return;
+    setEndingSession(true);
+    const saved = await saveSession("COMPLETED").catch(() => false);
+    setEndingSession(false);
+    if (!saved) return;
+
+    emitFocusMusicCommand({ action: "pause" });
+    timer.reset();
   }
 
   async function endEarly() {
@@ -423,12 +448,12 @@ export function TimerEngine({ tasks, settings, behavioralInsights, onSessionSave
           </select>
         </label>
         <label className="block">
-          <span className="mb-2 block text-sm font-bold text-muted">Minutes</span>
+          <span className="mb-2 block text-sm font-bold text-muted">{selectedIsStopwatch ? "Mode" : "Minutes"}</span>
           <Input
-            type="number"
+            type={selectedIsStopwatch ? "text" : "number"}
             min={1}
             max={120}
-            value={selectedDuration}
+            value={selectedIsStopwatch ? "Count up" : selectedDuration}
             disabled={selectedMode !== "CUSTOM"}
             onChange={(event) => setCustomMinutes(Number(event.target.value))}
           />
@@ -488,9 +513,15 @@ export function TimerEngine({ tasks, settings, behavioralInsights, onSessionSave
             ) : (
               <Button onClick={startTimer} disabled={loading}>
                 <Play className="h-4 w-4" />
-                {loading ? "Starting..." : "Start Focus"}
+                {loading ? "Starting..." : selectedIsStopwatch ? "Start Stopwatch" : "Start Focus"}
               </Button>
             )}
+            {currentTimerIsStopwatch && (timer.status === "running" || timer.status === "paused") ? (
+              <Button onClick={() => void finishStopwatch()} disabled={endingSession}>
+                <Square className="h-4 w-4" />
+                {endingSession ? "Saving..." : "Finish"}
+              </Button>
+            ) : null}
             <Button variant="secondary" size="lg" className="rounded-full px-6 font-bold" onClick={handleReset}>
               <RotateCcw className="h-4 w-4" />
               Reset

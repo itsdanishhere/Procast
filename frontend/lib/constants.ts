@@ -206,11 +206,12 @@ export const appNav = [
 ] as const;
 
 export const timerModes = {
-  POMODORO: { label: "Pomodoro", minutes: 25, xp: 35 },
-  SHORT_BREAK: { label: "Short Break", minutes: 5, xp: 0 },
-  LONG_BREAK: { label: "Long Break", minutes: 15, xp: 0 },
-  DEEP_FOCUS: { label: "Deep Focus", minutes: 45, xp: 80 },
-  CUSTOM: { label: "Custom", minutes: 60, xp: 90 }
+  POMODORO: { label: "Pomodoro", minutes: 25, xp: 25 },
+  SHORT_BREAK: { label: "Short Break", minutes: 5, xp: 5 },
+  LONG_BREAK: { label: "Long Break", minutes: 15, xp: 15 },
+  DEEP_FOCUS: { label: "Deep Focus", minutes: 45, xp: 45 },
+  CUSTOM: { label: "Custom", minutes: 60, xp: 60 },
+  STOPWATCH: { label: "Stopwatch", minutes: 0, xp: 0 }
 } as const;
 
 export const statsCards = [

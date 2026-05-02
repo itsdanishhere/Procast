@@ -29,6 +29,8 @@ type AnalyticsData = {
     dailyStreak: number;
     bestStreak: number;
     xp: number;
+    completionRate: number;
+    totalSessions: number;
   };
   daily: { day: string; minutes: number; sessions: number }[];
   bestHours: { hour: string; score: number }[];
@@ -52,7 +54,9 @@ export function AnalyticsClient() {
         activeTasks: Number(payload.summary?.activeTasks ?? 0),
         dailyStreak: Number(payload.summary?.dailyStreak ?? 0),
         bestStreak: Number(payload.summary?.bestStreak ?? payload.summary?.bestDailyStreak ?? 0),
-        xp: Number(payload.summary?.xp ?? payload.summary?.totalXp ?? 0)
+        xp: Number(payload.summary?.xp ?? payload.summary?.totalXp ?? 0),
+        completionRate: Number(payload.summary?.completionRate ?? payload.behavioralInsights?.completionRate ?? 0),
+        totalSessions: Number(payload.summary?.totalSessions ?? payload.behavioralInsights?.totalSessions ?? 0)
       },
       daily: (payload.daily ?? []).map((item: any) => ({
         day: String(item.day),
@@ -88,13 +92,14 @@ export function AnalyticsClient() {
     { label: "Focus minutes", value: data.summary.totalFocusMinutes, icon: Clock3, color: "text-cyan" },
     { label: "Sessions", value: data.summary.completedSessions, icon: BarChart3, color: "text-mint" },
     { label: "Tasks done", value: data.summary.completedTasks, icon: CheckCircle2, color: "text-amber" },
+    { label: "Completion", value: `${data.summary.completionRate}%`, icon: Brain, color: "text-mint" },
     { label: "Best streak", value: `${data.summary.bestStreak ?? 0}d`, icon: Flame, color: "text-danger" },
     { label: "Total XP", value: data.summary.xp, icon: Sparkles, color: "text-cyan" }
   ];
 
   return (
     <div className="space-y-6">
-      <div className="grid gap-4 md:grid-cols-5">
+      <div className="grid gap-4 md:grid-cols-3 xl:grid-cols-6">
         {stats.map((stat) => {
           const Icon = stat.icon;
           return (

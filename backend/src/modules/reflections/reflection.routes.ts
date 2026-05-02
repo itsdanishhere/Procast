@@ -10,3 +10,6 @@ export const reflectionRoutes = Router();
 reflectionRoutes.use(authMiddleware);
 reflectionRoutes.get("/", reflectionController.list);
 reflectionRoutes.post("/", writeRateLimit, validateBody(createReflectionSchema), reflectionController.create);
+reflectionRoutes.delete("/:reflectionId", writeRateLimit, reflectionController.softDelete);
+reflectionRoutes.post("/:reflectionId/restore", writeRateLimit, reflectionController.restore);
+reflectionRoutes.delete("/:reflectionId/permanent", writeRateLimit, reflectionController.permanentlyDelete);

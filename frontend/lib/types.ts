@@ -55,6 +55,7 @@ export type ReflectionDTO = {
   improve: string;
   notes: string | null;
   createdAt: string;
+  deletedAt?: string | null;
 };
 
 export type MotivationDTO = {

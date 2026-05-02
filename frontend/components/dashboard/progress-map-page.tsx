@@ -134,7 +134,12 @@ export function ProgressMapPage({ progress }: { progress: ProgressDTO }) {
                         );
                       })}
                     </div>
-                    <p className="mt-4 text-xs font-bold text-cyan">{stage.threshold} XP required</p>
+                    <div className="mt-4 flex items-center justify-between gap-3 text-xs font-bold">
+                      <span className="text-cyan">{stage.threshold} XP required</span>
+                      <span className={unlocked ? "text-mint" : "text-amber"}>
+                        {Math.max(0, stage.threshold - totalXp)} XP left
+                      </span>
+                    </div>
                   </div>
                 </div>
               );

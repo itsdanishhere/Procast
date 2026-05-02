@@ -9,6 +9,11 @@ import { Button, buttonVariants } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { apiFetch } from "@/lib/api-client";
 import { cn } from "@/lib/cn";
+import {
+  emitFocusMusicCommand,
+  focusMusicStateEvent,
+  type FocusMusicStateDetail
+} from "@/lib/music-events";
 import { externalTimerArmEvent } from "@/lib/timer-events";
 import { formatSeconds, useTimerStore } from "@/lib/timer-store";
 
@@ -55,10 +60,13 @@ export function FloatingTimer() {
   const externalOpenModeRef = useRef<ExternalOpenMode | null>(null);
   const externalRenderModeRef = useRef<ExternalRenderMode | null>(null);
   const documentPiPRef = useRef<DocumentPiPBindings | null>(null);
-  const audioContextRef = useRef<AudioContext | null>(null);
-  const oscillatorRef = useRef<OscillatorNode | null>(null);
-  const gainRef = useRef<GainNode | null>(null);
-  const musicEnabledRef = useRef(false);
+  const [focusMusic, setFocusMusic] = useState<FocusMusicStateDetail>({
+    available: false,
+    playing: false,
+    trackId: null,
+    title: null
+  });
+  const focusMusicRef = useRef<FocusMusicStateDetail>(focusMusic);
   const syncTimeoutRef = useRef<number | null>(null);
   const latestRef = useRef<ExternalTimerState>({
     label,
@@ -75,6 +83,7 @@ export function FloatingTimer() {
     durationSeconds,
     status
   };
+  focusMusicRef.current = focusMusic;
 
   useEffect(() => {
     const interval = window.setInterval(tick, 500);
@@ -83,6 +92,7 @@ export function FloatingTimer() {
 
   const drawExternalTimer = useCallback((ctx: CanvasRenderingContext2D) => {
     const latest = latestRef.current;
+    const music = focusMusicRef.current;
     const progress = latest.durationSeconds
       ? ((latest.durationSeconds - latest.remainingSeconds) / latest.durationSeconds) * 100
       : 0;
@@ -208,16 +218,24 @@ export function FloatingTimer() {
     ctx.lineTo(210, 201);
     ctx.stroke();
 
-    drawRoundedRect(253, 186, 100, 56, 28);
+    drawRoundedRect(255, 186, 56, 56, 28);
     ctx.fillStyle = "#2563eb";
     ctx.fill();
     ctx.strokeStyle = "rgba(79, 126, 255, 0.6)";
     ctx.lineWidth = 1;
     ctx.stroke();
     ctx.fillStyle = "#ffffff";
-    ctx.font = "bold 16px sans-serif";
+    ctx.font = "bold 34px sans-serif";
     ctx.textAlign = "center";
-    ctx.fillText("Return", 303, 221);
+    ctx.fillText("♪", 283, 224);
+    if (!music.playing) {
+      ctx.strokeStyle = "#ff5c5c";
+      ctx.lineWidth = 4;
+      ctx.beginPath();
+      ctx.moveTo(269, 229);
+      ctx.lineTo(297, 201);
+      ctx.stroke();
+    }
   }, []);
 
   const renderDocumentTimer = useCallback(() => {
@@ -236,6 +254,7 @@ export function FloatingTimer() {
     const progressEl = doc.getElementById("procast-pip-progress");
     const actionEl = doc.getElementById("procast-pip-action");
     const musicEl = doc.getElementById("procast-pip-music");
+    const music = focusMusicRef.current;
 
     if (statusEl) statusEl.textContent = latest.status.toUpperCase();
     if (labelEl) labelEl.textContent = latest.label || "Focus";
@@ -245,56 +264,18 @@ export function FloatingTimer() {
     if (actionEl) actionEl.textContent = latest.status === "running" ? "⏸" : "▶";
     if (musicEl) {
       musicEl.textContent = "♪";
-      musicEl.setAttribute("data-muted", musicEnabledRef.current ? "false" : "true");
+      musicEl.setAttribute("data-muted", music.playing ? "false" : "true");
+      musicEl.setAttribute("title", music.available ? (music.playing ? "Pause focus music" : "Resume focus music") : "Start music in ProCast first");
     }
   }, []);
 
-  const stopAmbientSound = useCallback(() => {
-    try {
-      oscillatorRef.current?.stop();
-    } catch {
-      // Ignore if oscillator already stopped.
-    }
-    oscillatorRef.current?.disconnect();
-    gainRef.current?.disconnect();
-    oscillatorRef.current = null;
-    gainRef.current = null;
-    musicEnabledRef.current = false;
-    renderDocumentTimer();
-  }, [renderDocumentTimer]);
-
-  const toggleAmbientSound = useCallback(async () => {
-    if (musicEnabledRef.current) {
-      stopAmbientSound();
+  const toggleFocusMusic = useCallback(() => {
+    if (!focusMusicRef.current.available) {
+      toast.error("Start a track in the ProCast music player first.");
       return;
     }
-
-    const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
-    if (!AudioCtx) {
-      toast.error("Ambient audio is not supported in this browser.");
-      return;
-    }
-
-    const ctx = audioContextRef.current ?? new AudioCtx();
-    audioContextRef.current = ctx;
-    if (ctx.state === "suspended") {
-      await ctx.resume();
-    }
-
-    const oscillator = ctx.createOscillator();
-    const gain = ctx.createGain();
-    oscillator.type = "triangle";
-    oscillator.frequency.value = 174;
-    gain.gain.value = 0.012;
-    oscillator.connect(gain);
-    gain.connect(ctx.destination);
-    oscillator.start();
-
-    oscillatorRef.current = oscillator;
-    gainRef.current = gain;
-    musicEnabledRef.current = true;
-    renderDocumentTimer();
-  }, [renderDocumentTimer, stopAmbientSound]);
+    emitFocusMusicCommand({ action: "toggle" });
+  }, []);
 
   const closeDocumentPiP = useCallback(() => {
     const pip = documentPiPRef.current;
@@ -496,6 +477,7 @@ export function FloatingTimer() {
             return;
           }
         }
+        emitFocusMusicCommand({ action: "pause" });
         reset();
       };
       const goDashboard = () => {
@@ -509,7 +491,7 @@ export function FloatingTimer() {
         }
       };
       const onExternal = () => goDashboard();
-      const onMusic = () => void toggleAmbientSound();
+      const onMusic = () => toggleFocusMusic();
       actionButton?.addEventListener("click", onAction);
       resetButton?.addEventListener("click", onReset);
       musicButton?.addEventListener("click", onMusic);
@@ -540,7 +522,7 @@ export function FloatingTimer() {
     } catch {
       return false;
     }
-  }, [backendSessionId, pause, renderDocumentTimer, reset, resume]);
+  }, [backendSessionId, pause, renderDocumentTimer, reset, resume, toggleFocusMusic]);
 
   const startExternalAnimation = useCallback(() => {
     if (!canvasRef.current) return;
@@ -766,6 +748,18 @@ export function FloatingTimer() {
   }, [ensureExternalVideo, syncExternalMode]);
 
   useEffect(() => {
+    function handleFocusMusicState(event: Event) {
+      const nextMusic = (event as CustomEvent<FocusMusicStateDetail>).detail;
+      focusMusicRef.current = nextMusic;
+      setFocusMusic(nextMusic);
+      renderDocumentTimer();
+    }
+
+    window.addEventListener(focusMusicStateEvent, handleFocusMusicState);
+    return () => window.removeEventListener(focusMusicStateEvent, handleFocusMusicState);
+  }, [renderDocumentTimer]);
+
+  useEffect(() => {
     if (status !== "running" && status !== "paused") return;
     renderDocumentTimer();
     const watchdog = window.setInterval(() => {
@@ -777,7 +771,6 @@ export function FloatingTimer() {
 
   useEffect(() => {
     if (status === "idle" || status === "completed") {
-      stopAmbientSound();
       void exitExternalTimer();
       if (animationRef.current) window.cancelAnimationFrame(animationRef.current);
       animationRef.current = null;
@@ -788,15 +781,14 @@ export function FloatingTimer() {
       closeDocumentPiP();
     }
     syncExternalMode();
-  }, [closeDocumentPiP, exitExternalTimer, status, stopAmbientSound, syncExternalMode]);
+  }, [closeDocumentPiP, exitExternalTimer, status, syncExternalMode]);
 
   useEffect(() => {
     return () => {
-      stopAmbientSound();
       closeDocumentPiP();
       if (animationRef.current) window.cancelAnimationFrame(animationRef.current);
     };
-  }, [closeDocumentPiP, stopAmbientSound]);
+  }, [closeDocumentPiP]);
 
   async function pauseTimer() {
     if (status !== "running") return;
@@ -847,6 +839,7 @@ export function FloatingTimer() {
         return;
       }
     }
+    emitFocusMusicCommand({ action: "pause" });
     reset();
   }
 

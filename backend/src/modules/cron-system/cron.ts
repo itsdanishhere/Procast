@@ -1,6 +1,7 @@
 import cron from "node-cron";
 
 import { analyticsQueue, backupQueue } from "../queue-system/queues";
+import { reflectionService } from "../reflections/reflection.service";
 import { selfHealingService } from "../self-healing-engine/self-healing.service";
 import { prisma } from "../../shared/prisma/client";
 import { logger } from "../../shared/logger";
@@ -44,6 +45,12 @@ export function registerCronJobs() {
   cron.schedule("0 3 * * *", () =>
     trackedRun("backup-daily", async () => {
       await backupQueue.add("database-backup", { requestedAt: new Date().toISOString() });
+    })
+  );
+
+  cron.schedule("30 3 * * *", () =>
+    trackedRun("purge-deleted-reflections", async () => {
+      await reflectionService.purgeExpiredDeleted();
     })
   );
 }

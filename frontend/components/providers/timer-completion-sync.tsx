@@ -4,6 +4,7 @@ import { useEffect, useRef } from "react";
 import { toast } from "sonner";
 
 import { apiFetch } from "@/lib/api-client";
+import { emitFocusMusicCommand } from "@/lib/music-events";
 import { emitProgressUpdate, normalizeProgress } from "@/lib/progress-dto";
 import { emitTimerSessionSaved } from "@/lib/timer-events";
 import { useTimerStore } from "@/lib/timer-store";
@@ -52,9 +53,11 @@ export function TimerCompletionSync() {
     async function completeSession() {
       if (!timer.backendSessionId) {
         toast.error("Backend timer session was not created. Start the session again.");
+        emitFocusMusicCommand({ action: "pause" });
         return;
       }
 
+      emitFocusMusicCommand({ action: "pause" });
       playCompletionSound();
       if (Notification.permission === "granted") {
         new Notification("ProCast session complete", {

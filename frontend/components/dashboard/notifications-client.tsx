@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { apiFetch } from "@/lib/api-client";
 import { cn } from "@/lib/cn";
-import { appDataRefreshEvent } from "@/lib/timer-events";
+import { appDataRefreshEvent, emitAppDataRefresh } from "@/lib/timer-events";
 
 type NotificationDTO = {
   id: string;
@@ -37,6 +37,27 @@ export function NotificationsClient({ initialNotifications }: { initialNotificat
     return () => window.removeEventListener(appDataRefreshEvent, loadNotifications);
   }, [loadNotifications]);
 
+  useEffect(() => {
+    const unreadIds = notifications.filter((notification) => !notification.readAt).map((notification) => notification.id);
+    if (unreadIds.length === 0) return;
+
+    const now = new Date().toISOString();
+    setNotifications((current) =>
+      current.map((notification) =>
+        unreadIds.includes(notification.id) ? { ...notification, readAt: notification.readAt || now } : notification
+      )
+    );
+
+    apiFetch("/notifications/read", {
+      method: "PATCH",
+      body: JSON.stringify({ ids: unreadIds })
+    }).then((response) => {
+      if (response.ok) emitAppDataRefresh("notifications-read");
+    }).catch(() => {
+      toast.error("Could not sync read alerts.");
+    });
+  }, [notifications]);
+
   async function markAllRead() {
     const response = await apiFetch("/notifications/read", {
       method: "PATCH",
@@ -47,7 +68,8 @@ export function NotificationsClient({ initialNotifications }: { initialNotificat
       return;
     }
     const now = new Date().toISOString();
-    setNotifications(notifications.map((notification) => ({ ...notification, readAt: notification.readAt || now })));
+    setNotifications((current) => current.map((notification) => ({ ...notification, readAt: notification.readAt || now })));
+    emitAppDataRefresh("notifications-read");
   }
 
   return (

@@ -91,7 +91,8 @@ export function normalizeReflection(reflection: any): ReflectionDTO {
     wentWell: String(reflection.wentWell ?? ""),
     improve: String(reflection.improve ?? reflection.improveTomorrow ?? ""),
     notes: reflection.notes ?? reflection.reflectionNotes ?? null,
-    createdAt: reflection.createdAt ?? new Date().toISOString()
+    createdAt: reflection.createdAt ?? new Date().toISOString(),
+    deletedAt: reflection.deletedAt ?? null
   };
 }
 
@@ -102,7 +103,7 @@ const defaultMotivation: MotivationDTO = {
 };
 
 export const defaultBehavioralInsights: BehavioralInsightsDTO = {
-  completionRate: 100,
+  completionRate: 0,
   topDistraction: "None yet",
   totalSessions: 0,
   completedSessions: 0,
@@ -185,6 +186,13 @@ export async function fetchRecentSessions(limit = 25) {
 
 export async function fetchReflections() {
   const response = await apiFetch("/reflections");
+  if (!response.ok) return [];
+  const data = await response.json();
+  return (data.reflections ?? []).map(normalizeReflection);
+}
+
+export async function fetchDeletedReflections() {
+  const response = await apiFetch("/reflections?deleted=true");
   if (!response.ok) return [];
   const data = await response.json();
   return (data.reflections ?? []).map(normalizeReflection);

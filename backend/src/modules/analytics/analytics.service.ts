@@ -90,7 +90,7 @@ export class AnalyticsService {
       sessions,
       snapshots,
       completedSessionsTotal,
-      allSessionsTotal,
+      attemptedSessionsTotal,
       abandonedSessionsTotal,
       completedTasks,
       activeTasks,
@@ -110,7 +110,9 @@ export class AnalyticsService {
         orderBy: { snapshotDate: "asc" }
       }),
       prisma.focusSession.count({ where: { userId, status: "COMPLETED", deletedAt: null } }),
-      prisma.focusSession.count({ where: { userId, deletedAt: null } }),
+      prisma.focusSession.count({
+        where: { userId, status: { in: ["COMPLETED", "ABANDONED", "EXPIRED"] }, deletedAt: null }
+      }),
       prisma.focusSession.count({ where: { userId, status: "ABANDONED", deletedAt: null } }),
       prisma.task.count({ where: { userId, status: "COMPLETED", deletedAt: null } }),
       prisma.task.count({ where: { userId, status: "ACTIVE", deletedAt: null } }),
@@ -153,7 +155,7 @@ export class AnalyticsService {
       score: Math.round((byHour.get(hour) ?? 0) / 60)
     }));
     const peakHour = [...bestHours].sort((a, b) => b.score - a.score)[0];
-    const completionRate = allSessionsTotal > 0 ? Math.round((completedSessionsTotal / allSessionsTotal) * 100) : 100;
+    const completionRate = attemptedSessionsTotal > 0 ? Math.round((completedSessionsTotal / attemptedSessionsTotal) * 100) : 0;
     const distractionCounts = new Map<string, number>();
     for (const log of distractionLogs) {
       const key = log.reasonCategory.trim() || "Unspecified";
@@ -198,7 +200,7 @@ export class AnalyticsService {
         weeklyStreak: streak?.weeklyStreak ?? 0,
         totalFocusMinutes: Math.round(focusSeconds30 / 60),
         completedSessions: completedSessionsTotal,
-        totalSessions: allSessionsTotal,
+        totalSessions: attemptedSessionsTotal,
         abandonedSessions: abandonedSessionsTotal,
         completionRate,
         topDistraction,
@@ -212,7 +214,7 @@ export class AnalyticsService {
       behavioralInsights: {
         completionRate,
         topDistraction,
-        totalSessions: allSessionsTotal,
+        totalSessions: attemptedSessionsTotal,
         completedSessions: completedSessionsTotal,
         abandonedSessions: abandonedSessionsTotal,
         environmentStatus,
@@ -225,7 +227,7 @@ export class AnalyticsService {
         completedSessionsTotal > 0
           ? `${completedSessionsTotal} completed sessions have protected your world so far.`
           : "Start one focused session to generate your first productivity pattern.",
-        allSessionsTotal > 0
+        attemptedSessionsTotal > 0
           ? `Your session completion rate is ${completionRate}%.`
           : "Completion rate appears after your first attempted focus block.",
         topDistraction !== "None yet"

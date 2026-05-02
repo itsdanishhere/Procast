@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import { Bell, Headphones, Pause, Play, RotateCcw, ShieldAlert } from "lucide-react";
 import { toast } from "sonner";
 
@@ -11,6 +12,7 @@ import { Progress } from "@/components/ui/progress";
 import { apiFetch } from "@/lib/api-client";
 import { timerModes } from "@/lib/constants";
 import { cn } from "@/lib/cn";
+import { emitFocusMusicCommand, openFocusMusicPlayer } from "@/lib/music-events";
 import { normalizeProgress } from "@/lib/progress-dto";
 import { externalTimerArmEvent } from "@/lib/timer-events";
 import { formatSeconds, TimerMode, useTimerStore } from "@/lib/timer-store";
@@ -25,12 +27,43 @@ type TimerEngineProps = {
 
 const distractionOptions = ["Social Media", "Interruption", "Boredom", "Too Hard", "Other"];
 
+type TimerSaveResponse = {
+  error?: unknown;
+  progress?: Parameters<typeof normalizeProgress>[0];
+  streak?: Parameters<typeof normalizeProgress>[1];
+  session?: {
+    id: string;
+    taskId?: string | null;
+    mode: string;
+    status: "COMPLETED" | "ABANDONED" | "INTERRUPTED";
+    plannedSeconds: number;
+    accumulatedFocusSeconds: number;
+    xpEarned?: number | null;
+    startedAt?: string | null;
+    createdAt?: string | null;
+    completedAt?: string | null;
+    abandonedAt?: string | null;
+    updatedAt?: string | null;
+  };
+};
+
+function errorMessage(error: unknown) {
+  if (typeof error === "string") return error;
+  if (error && typeof error === "object" && "message" in error) {
+    const message = (error as { message?: unknown }).message;
+    return typeof message === "string" ? message : JSON.stringify(error);
+  }
+  return undefined;
+}
+
 export function TimerEngine({ tasks, settings, behavioralInsights, onSessionSaved }: TimerEngineProps) {
+  const router = useRouter();
   const timer = useTimerStore();
   const [selectedMode, setSelectedMode] = useState<TimerMode>("POMODORO");
   const [customMinutes, setCustomMinutes] = useState(settings.deepFocusMinutes);
   const [selectedTaskId, setSelectedTaskId] = useState<string>("");
   const [loading, setLoading] = useState(false);
+  const [endingSession, setEndingSession] = useState(false);
   const [confirmExit, setConfirmExit] = useState(false);
   const [exitReasonCategory, setExitReasonCategory] = useState("Social Media");
   const [exitCustomReason, setExitCustomReason] = useState("");
@@ -122,19 +155,31 @@ export function TimerEngine({ tasks, settings, behavioralInsights, onSessionSave
   ) {
     if (!timer.backendSessionId) {
       toast.error("Backend timer session was not created. Start the session again.");
-      return;
+      return false;
     }
 
-    const response = await apiFetch(`/timer/sessions/${timer.backendSessionId}/${status === "COMPLETED" ? "complete" : "abandon"}`, {
-      method: "POST",
-      body: JSON.stringify(exitReason ?? {})
-    });
-    const data = await response.json();
+    let response: Response;
+    let data: TimerSaveResponse;
+    try {
+      response = await apiFetch(`/timer/sessions/${timer.backendSessionId}/${status === "COMPLETED" ? "complete" : "abandon"}`, {
+        method: "POST",
+        body: JSON.stringify(exitReason ?? {})
+      });
+      data = (await response.json()) as TimerSaveResponse;
+    } catch {
+      toast.error("Could not reach the timer server. Try again.");
+      return false;
+    }
 
     if (!response.ok) {
-      const errorMsg = typeof data.error === "object" ? data.error.message || JSON.stringify(data.error) : data.error;
+      const errorMsg = errorMessage(data.error);
       toast.error(errorMsg || "Could not save session.");
-      return;
+      return false;
+    }
+
+    if (!data.session) {
+      toast.error("Timer server returned an invalid session response.");
+      return false;
     }
 
     let nextProgress = data.progress ? normalizeProgress(data.progress, data.streak) : null;
@@ -147,18 +192,21 @@ export function TimerEngine({ tasks, settings, behavioralInsights, onSessionSave
     }
 
     const xpEarned = Number(data.session.xpEarned ?? 0);
+    const startedAt = data.session.startedAt || data.session.createdAt || new Date().toISOString();
+    const endedAt =
+      data.session.completedAt || data.session.abandonedAt || data.session.updatedAt || new Date().toISOString();
 
     onSessionSaved(
       {
         id: data.session.id,
-        taskId: data.session.taskId,
+        taskId: data.session.taskId ?? null,
         mode: data.session.mode,
         status: data.session.status,
         durationMinutes: Math.round(data.session.plannedSeconds / 60),
         actualSeconds: data.session.accumulatedFocusSeconds,
         xpEarned,
-        startedAt: data.session.startedAt || data.session.createdAt,
-        endedAt: data.session.completedAt || data.session.abandonedAt || data.session.updatedAt,
+        startedAt,
+        endedAt,
         task: selectedTask ? { title: selectedTask.title } : null
       },
       nextProgress
@@ -169,6 +217,8 @@ export function TimerEngine({ tasks, settings, behavioralInsights, onSessionSave
     } else {
       toast.error("Session marked incomplete. Your world did not grow.");
     }
+
+    return true;
   }
 
   function applySelection(mode: TimerMode) {
@@ -182,6 +232,7 @@ export function TimerEngine({ tasks, settings, behavioralInsights, onSessionSave
   }
 
   async function startTimer() {
+    if (loading) return;
     window.dispatchEvent(new Event(externalTimerArmEvent));
 
     if (Notification.permission === "default") {
@@ -239,21 +290,28 @@ export function TimerEngine({ tasks, settings, behavioralInsights, onSessionSave
       taskTitle: tasks.find(t => t.id === selectedTaskId)?.title || undefined,
       backendSessionId: data.session.id
     });
+    emitFocusMusicCommand({ action: "resume-or-start" });
     
     toast.success("Focus mode started. Your world is on the line.");
   }
 
   async function endEarly() {
-    setConfirmExit(false);
+    if (endingSession) return;
+    setEndingSession(true);
     const category = exitReasonCategory || "Unspecified";
     const customReason = exitCustomReason.trim();
-    await saveSession("ABANDONED", {
+    const saved = await saveSession("ABANDONED", {
       reason: customReason || `User ended early: ${category}`,
       reasonCategory: category,
       customReason: customReason || undefined
-    });
+    }).catch(() => false);
+    setEndingSession(false);
+    if (!saved) return;
+
+    setConfirmExit(false);
     setExitReasonCategory("Social Media");
     setExitCustomReason("");
+    emitFocusMusicCommand({ action: "pause" });
     timer.reset();
   }
 
@@ -301,7 +359,17 @@ export function TimerEngine({ tasks, settings, behavioralInsights, onSessionSave
     timer.reset();
   }
 
+  async function handleSetTimer() {
+    if (timerActive) {
+      await startTimer();
+      return;
+    }
+    applySelection(selectedMode);
+    toast.success("Timer set.");
+  }
+
   return (
+    <>
     <Card className="p-6">
       <CardHeader>
         <div>
@@ -309,10 +377,10 @@ export function TimerEngine({ tasks, settings, behavioralInsights, onSessionSave
           <CardDescription>Structured sessions, recovery after refresh, early-exit penalty, and completion XP.</CardDescription>
         </div>
         <div className="flex gap-2">
-          <Button size="icon" variant="secondary" title="Browser notifications">
+          <Button size="icon" variant="secondary" title="Alerts" onClick={() => router.push("/notifications")}>
             <Bell className="h-4 w-4" />
           </Button>
-          <Button size="icon" variant="secondary" title="Ambient focus sounds">
+          <Button size="icon" variant="secondary" title="Focus music player" onClick={openFocusMusicPlayer}>
             <Headphones className="h-4 w-4" />
           </Button>
         </div>
@@ -429,9 +497,10 @@ export function TimerEngine({ tasks, settings, behavioralInsights, onSessionSave
               variant="secondary"
               size="lg"
               className="rounded-full border-cyan/20 px-6 font-bold text-cyan hover:bg-cyan/10"
-              onClick={() => applySelection(selectedMode)}
+              onClick={() => void handleSetTimer()}
+              disabled={loading}
             >
-              Set
+              {loading && timerActive ? "Starting..." : "Set"}
             </Button>
             {(timer.status === "running" || timer.status === "paused") && (
               <Button variant="danger" onClick={() => setConfirmExit(true)}>
@@ -475,8 +544,8 @@ export function TimerEngine({ tasks, settings, behavioralInsights, onSessionSave
             />
           ) : null}
           <div className="mt-4 flex flex-wrap gap-2">
-            <Button variant="danger" size="sm" onClick={endEarly}>
-              End and log distraction
+            <Button variant="danger" size="sm" onClick={() => void endEarly()} disabled={endingSession}>
+              {endingSession ? "Ending..." : "End and log distraction"}
             </Button>
             <Button variant="secondary" size="sm" onClick={() => setConfirmExit(false)}>
               Keep focusing
@@ -485,5 +554,6 @@ export function TimerEngine({ tasks, settings, behavioralInsights, onSessionSave
         </div>
       ) : null}
     </Card>
+    </>
   );
 }

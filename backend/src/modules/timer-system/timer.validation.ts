@@ -19,5 +19,7 @@ export const heartbeatSchema = z.object({
 });
 
 export const abandonSchema = z.object({
-  reason: z.string().max(240).optional()
+  reason: z.string().max(240).optional(),
+  reasonCategory: z.string().min(2).max(80).optional(),
+  customReason: z.string().max(240).optional()
 });

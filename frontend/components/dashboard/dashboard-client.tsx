@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { Activity, Clock3, Flame, Sparkles } from "lucide-react";
+import { Activity, AlertTriangle, Clock3, Flame, Sparkles } from "lucide-react";
 
 import { ReflectionModal } from "@/components/dashboard/reflection-modal";
 import { TaskManager } from "@/components/dashboard/task-manager";
@@ -9,10 +9,10 @@ import { TimerEngine } from "@/components/dashboard/timer-engine";
 import { WorldProgressCard } from "@/components/dashboard/world-progress-card";
 import { Card } from "@/components/ui/card";
 import { apiFetch } from "@/lib/api-client";
-import { fetchRecentSessions, fetchTasks } from "@/lib/live-data";
+import { defaultBehavioralInsights, fetchRecentSessions, fetchTasks, normalizeBehavioralInsights } from "@/lib/live-data";
 import { emitProgressUpdate, normalizeProgress } from "@/lib/progress-dto";
 import { appDataRefreshEvent, timerSessionSavedEvent, type TimerSessionSavedDetail } from "@/lib/timer-events";
-import type { ProgressDTO, SessionDTO, SettingsDTO, TaskDTO } from "@/lib/types";
+import type { BehavioralInsightsDTO, ProgressDTO, SessionDTO, SettingsDTO, TaskDTO } from "@/lib/types";
 
 function isToday(value: string) {
   const date = new Date(value);
@@ -42,6 +42,7 @@ export function DashboardClient({
   const [tasks, setTasks] = useState<TaskDTO[]>(initialTasks);
   const [sessions, setSessions] = useState<SessionDTO[]>(initialSessions);
   const [progress, setProgress] = useState<ProgressDTO>(initialProgress);
+  const [behavior, setBehavior] = useState<BehavioralInsightsDTO>(defaultBehavioralInsights);
   const [reflectionSessionId, setReflectionSessionId] = useState<string | null>(null);
   const [todayCompletedCount, setTodayCompletedCount] = useState(() => countCompletedToday(initialSessions));
 
@@ -76,6 +77,7 @@ export function DashboardClient({
       }
       if (analyticsRes.ok) {
         const analyticsData = await analyticsRes.json();
+        setBehavior(normalizeBehavioralInsights(analyticsData, defaultBehavioralInsights));
         const todayKey = new Date().toISOString().slice(0, 10);
         const today = analyticsData.daily?.find((item: { day: string }) => item.day === todayKey) ?? analyticsData.daily?.at(-1);
         setTodayCompletedCount((current) => Math.max(current, today?.completedSessions ?? today?.sessions ?? 0));
@@ -134,11 +136,42 @@ export function DashboardClient({
         })}
       </div>
 
+      <Card
+        className={
+          behavior.motivation.messageType === "locked"
+            ? "mb-5 border-danger/25 bg-danger/10 p-5"
+            : behavior.motivation.messageType === "warning"
+              ? "mb-5 border-amber/25 bg-amber/10 p-5"
+              : "mb-5 border-mint/25 bg-mint/10 p-5"
+        }
+      >
+        <div className="grid gap-4 lg:grid-cols-[1fr_360px] lg:items-center">
+          <div className="flex gap-3">
+            <AlertTriangle className={behavior.motivation.messageType === "encouragement" ? "mt-1 h-5 w-5 text-mint" : "mt-1 h-5 w-5 text-amber"} />
+            <div>
+              <p className="text-xs font-extrabold uppercase tracking-[0.18em] text-muted">Behavior signal</p>
+              <p className="mt-1 text-sm font-bold leading-6">{behavior.motivation.message}</p>
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-3 text-sm">
+            <div className="rounded-2xl border border-white/10 bg-black/15 p-3">
+              <p className="text-xs font-extrabold uppercase tracking-[0.14em] text-muted">Completion</p>
+              <p className="mt-1 font-display text-2xl font-extrabold text-mint">{behavior.completionRate}%</p>
+            </div>
+            <div className="rounded-2xl border border-white/10 bg-black/15 p-3">
+              <p className="text-xs font-extrabold uppercase tracking-[0.14em] text-muted">Main distraction</p>
+              <p className="mt-1 line-clamp-1 font-bold text-amber">{behavior.topDistraction}</p>
+            </div>
+          </div>
+        </div>
+      </Card>
+
       <div className="dashboard-grid">
         <div className="space-y-5">
           <TimerEngine
             tasks={tasks.filter((task) => task.status === "ACTIVE")}
             settings={settings}
+            behavioralInsights={behavior}
             onSessionSaved={(session, nextProgress) => {
               addSession(session);
               if (nextProgress) {
@@ -151,7 +184,7 @@ export function DashboardClient({
           <TaskManager tasks={tasks} onTasksChange={setTasks} />
         </div>
         <div className="space-y-5">
-          <WorldProgressCard progress={progress} />
+          <WorldProgressCard progress={progress} unlockedElements={behavior.unlockedElements} />
           <Card>
             <p className="mb-4 text-sm font-extrabold uppercase tracking-[0.18em] text-cyan">Recent session log</p>
             <div className="space-y-3">

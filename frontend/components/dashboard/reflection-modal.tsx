@@ -7,6 +7,7 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { apiFetch } from "@/lib/api-client";
+import { cn } from "@/lib/cn";
 import { fetchAndEmitCurrentProgress } from "@/lib/live-data";
 import { emitReflectionSaved } from "@/lib/timer-events";
 
@@ -19,12 +20,12 @@ export function ReflectionModal({
   sessionId: string | null;
   onClose: () => void;
 }) {
-  const [form, setForm] = useState({ distraction: "", wentWell: "", improve: "" });
+  const [form, setForm] = useState({ focusRating: 3, distraction: "", wentWell: "", improve: "", notes: "" });
   const [loading, setLoading] = useState(false);
 
   if (!open) return null;
 
-  function update(field: keyof typeof form, value: string) {
+  function update(field: keyof typeof form, value: string | number) {
     setForm((current) => ({ ...current, [field]: value }));
   }
 
@@ -35,9 +36,11 @@ export function ReflectionModal({
       method: "POST",
       body: JSON.stringify({
         focusSessionId: sessionId,
+        focusRating: form.focusRating,
         distraction: form.distraction,
         wentWell: form.wentWell,
-        improveTomorrow: form.improve
+        improveTomorrow: form.improve,
+        reflectionNotes: form.notes || undefined
       })
     });
     const data = await response.json();
@@ -52,7 +55,7 @@ export function ReflectionModal({
     toast.success("Reflection saved. +8 XP for self-awareness.");
     await fetchAndEmitCurrentProgress();
     emitReflectionSaved();
-    setForm({ distraction: "", wentWell: "", improve: "" });
+    setForm({ focusRating: 3, distraction: "", wentWell: "", improve: "", notes: "" });
     onClose();
   }
 
@@ -71,6 +74,26 @@ export function ReflectionModal({
         </div>
 
         <form onSubmit={submit} className="space-y-4">
+          <div>
+            <span className="mb-2 block text-sm font-bold text-muted">How focused did you feel?</span>
+            <div className="flex flex-wrap gap-2">
+              {[1, 2, 3, 4, 5].map((rating) => (
+                <button
+                  key={rating}
+                  type="button"
+                  onClick={() => update("focusRating", rating)}
+                  className={cn(
+                    "h-10 w-10 rounded-full border text-sm font-extrabold transition",
+                    form.focusRating === rating
+                      ? "border-cyan bg-cyan text-[#071019]"
+                      : "border-white/10 bg-white/[0.05] text-muted hover:text-foreground"
+                  )}
+                >
+                  {rating}
+                </button>
+              ))}
+            </div>
+          </div>
           <label className="block">
             <span className="mb-2 block text-sm font-bold text-muted">What distracted you today?</span>
             <Textarea value={form.distraction} onChange={(event) => update("distraction", event.target.value)} required />
@@ -82,6 +105,10 @@ export function ReflectionModal({
           <label className="block">
             <span className="mb-2 block text-sm font-bold text-muted">What will improve tomorrow?</span>
             <Textarea value={form.improve} onChange={(event) => update("improve", event.target.value)} required />
+          </label>
+          <label className="block">
+            <span className="mb-2 block text-sm font-bold text-muted">Optional notes</span>
+            <Textarea value={form.notes} onChange={(event) => update("notes", event.target.value)} />
           </label>
           <div className="flex justify-end gap-3">
             <Button type="button" variant="secondary" onClick={onClose}>

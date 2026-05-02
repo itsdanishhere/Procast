@@ -8,13 +8,14 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
 import { apiFetch } from "@/lib/api-client";
+import { cn } from "@/lib/cn";
 import { fetchAndEmitCurrentProgress, fetchReflections, normalizeReflection } from "@/lib/live-data";
 import { appDataRefreshEvent, emitReflectionSaved, reflectionSavedEvent } from "@/lib/timer-events";
 import type { ReflectionDTO } from "@/lib/types";
 
 export function JournalClient({ initialReflections }: { initialReflections: ReflectionDTO[] }) {
   const [reflections, setReflections] = useState(initialReflections);
-  const [form, setForm] = useState({ distraction: "", wentWell: "", improve: "" });
+  const [form, setForm] = useState({ focusRating: 3, distraction: "", wentWell: "", improve: "", notes: "" });
   const [loading, setLoading] = useState(false);
 
   const loadReflections = useCallback(async () => {
@@ -31,7 +32,7 @@ export function JournalClient({ initialReflections }: { initialReflections: Refl
     };
   }, [loadReflections]);
 
-  function update(field: keyof typeof form, value: string) {
+  function update(field: keyof typeof form, value: string | number) {
     setForm((current) => ({ ...current, [field]: value }));
   }
 
@@ -41,9 +42,11 @@ export function JournalClient({ initialReflections }: { initialReflections: Refl
     const response = await apiFetch("/reflections", {
       method: "POST",
       body: JSON.stringify({
+        focusRating: form.focusRating,
         distraction: form.distraction,
         wentWell: form.wentWell,
-        improveTomorrow: form.improve
+        improveTomorrow: form.improve,
+        reflectionNotes: form.notes || undefined
       })
     });
     const data = await response.json();
@@ -56,7 +59,7 @@ export function JournalClient({ initialReflections }: { initialReflections: Refl
     }
 
     setReflections((current) => [normalizeReflection(data.reflection), ...current.filter((item) => item.id !== data.reflection.id)]);
-    setForm({ distraction: "", wentWell: "", improve: "" });
+    setForm({ focusRating: 3, distraction: "", wentWell: "", improve: "", notes: "" });
     await fetchAndEmitCurrentProgress();
     emitReflectionSaved();
     toast.success("Reflection saved.");
@@ -75,6 +78,26 @@ export function JournalClient({ initialReflections }: { initialReflections: Refl
           </div>
         </div>
         <form onSubmit={submit} className="space-y-4">
+          <div>
+            <span className="mb-2 block text-sm font-bold text-muted">Focus rating</span>
+            <div className="flex flex-wrap gap-2">
+              {[1, 2, 3, 4, 5].map((rating) => (
+                <button
+                  key={rating}
+                  type="button"
+                  onClick={() => update("focusRating", rating)}
+                  className={cn(
+                    "h-10 w-10 rounded-full border text-sm font-extrabold transition",
+                    form.focusRating === rating
+                      ? "border-cyan bg-cyan text-[#071019]"
+                      : "border-white/10 bg-white/[0.05] text-muted hover:text-foreground"
+                  )}
+                >
+                  {rating}
+                </button>
+              ))}
+            </div>
+          </div>
           <label className="block">
             <span className="mb-2 block text-sm font-bold text-muted">What distracted you today?</span>
             <Textarea value={form.distraction} onChange={(event) => update("distraction", event.target.value)} required />
@@ -86,6 +109,10 @@ export function JournalClient({ initialReflections }: { initialReflections: Refl
           <label className="block">
             <span className="mb-2 block text-sm font-bold text-muted">What will improve tomorrow?</span>
             <Textarea value={form.improve} onChange={(event) => update("improve", event.target.value)} required />
+          </label>
+          <label className="block">
+            <span className="mb-2 block text-sm font-bold text-muted">Optional notes</span>
+            <Textarea value={form.notes} onChange={(event) => update("notes", event.target.value)} />
           </label>
           <Button disabled={loading} className="w-full">
             <Plus className="h-4 w-4" />
@@ -104,7 +131,10 @@ export function JournalClient({ initialReflections }: { initialReflections: Refl
                 <p className="text-sm font-extrabold uppercase tracking-[0.18em] text-cyan">
                   {new Date(reflection.createdAt).toLocaleDateString()}
                 </p>
-                {reflection.sessionId ? <span className="text-xs font-bold text-mint">Session-linked</span> : null}
+                <div className="flex items-center gap-2">
+                  {reflection.focusRating ? <span className="text-xs font-bold text-amber">{reflection.focusRating}/5 focus</span> : null}
+                  {reflection.sessionId ? <span className="text-xs font-bold text-mint">Session-linked</span> : null}
+                </div>
               </div>
               <div className="grid gap-3 md:grid-cols-3">
                 <div className="rounded-2xl border border-danger/20 bg-danger/10 p-4">
@@ -120,6 +150,12 @@ export function JournalClient({ initialReflections }: { initialReflections: Refl
                   <p className="mt-2 text-sm leading-6 text-muted">{reflection.improve}</p>
                 </div>
               </div>
+              {reflection.notes ? (
+                <div className="mt-3 rounded-2xl border border-white/10 bg-white/[0.04] p-4">
+                  <p className="text-xs font-extrabold uppercase tracking-[0.14em] text-muted">Notes</p>
+                  <p className="mt-2 text-sm leading-6 text-muted">{reflection.notes}</p>
+                </div>
+              ) : null}
             </Card>
           ))
         )}

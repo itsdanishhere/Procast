@@ -6,9 +6,9 @@ import { ReflectionModal } from "@/components/dashboard/reflection-modal";
 import { TimerEngine } from "@/components/dashboard/timer-engine";
 import { WorldProgressCard } from "@/components/dashboard/world-progress-card";
 import { emitProgressUpdate } from "@/lib/progress-dto";
-import { fetchCurrentUserSettings, fetchTasks } from "@/lib/live-data";
+import { defaultBehavioralInsights, fetchBehavioralInsights, fetchCurrentUserSettings, fetchTasks } from "@/lib/live-data";
 import { appDataRefreshEvent, timerSessionSavedEvent, type TimerSessionSavedDetail } from "@/lib/timer-events";
-import type { ProgressDTO, SettingsDTO, TaskDTO } from "@/lib/types";
+import type { BehavioralInsightsDTO, ProgressDTO, SettingsDTO, TaskDTO } from "@/lib/types";
 
 export function TimerPageClient({
   tasks,
@@ -22,13 +22,19 @@ export function TimerPageClient({
   const [currentProgress, setCurrentProgress] = useState(progress);
   const [currentTasks, setCurrentTasks] = useState(tasks);
   const [currentSettings, setCurrentSettings] = useState(settings);
+  const [behavior, setBehavior] = useState<BehavioralInsightsDTO>(defaultBehavioralInsights);
   const [reflectionSessionId, setReflectionSessionId] = useState<string | null>(null);
 
   useEffect(() => {
     async function loadTimerData() {
-      const [nextTasks, userData] = await Promise.all([fetchTasks(), fetchCurrentUserSettings(settings)]);
+      const [nextTasks, userData, behaviorData] = await Promise.all([
+        fetchTasks(),
+        fetchCurrentUserSettings(settings),
+        fetchBehavioralInsights(defaultBehavioralInsights)
+      ]);
       setCurrentTasks(nextTasks);
       setCurrentSettings(userData.settings);
+      setBehavior(behaviorData);
       if (userData.progress) setCurrentProgress(userData.progress);
     }
 
@@ -59,6 +65,7 @@ export function TimerPageClient({
         <TimerEngine
           tasks={currentTasks}
           settings={currentSettings}
+          behavioralInsights={behavior}
           onSessionSaved={(session, nextProgress) => {
             if (nextProgress) {
               setCurrentProgress(nextProgress);
@@ -67,7 +74,7 @@ export function TimerPageClient({
             if (session.status === "COMPLETED") setReflectionSessionId(session.id);
           }}
         />
-        <WorldProgressCard progress={currentProgress} />
+        <WorldProgressCard progress={currentProgress} unlockedElements={behavior.unlockedElements} />
       </div>
       <ReflectionModal
         sessionId={reflectionSessionId}

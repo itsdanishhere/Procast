@@ -12,11 +12,13 @@ import {
   XAxis,
   YAxis
 } from "recharts";
-import { BarChart3, CheckCircle2, Clock3, Flame, Sparkles } from "lucide-react";
+import { BarChart3, Brain, CheckCircle2, Clock3, Flame, Sparkles } from "lucide-react";
 
 import { Card } from "@/components/ui/card";
 import { apiFetch } from "@/lib/api-client";
+import { defaultBehavioralInsights, normalizeBehavioralInsights } from "@/lib/live-data";
 import { appDataRefreshEvent } from "@/lib/timer-events";
+import type { BehavioralInsightsDTO } from "@/lib/types";
 
 type AnalyticsData = {
   summary: {
@@ -31,6 +33,7 @@ type AnalyticsData = {
   daily: { day: string; minutes: number; sessions: number }[];
   bestHours: { hour: string; score: number }[];
   taskTrend: { completed: number; active: number; archived: number };
+  behavioralInsights: BehavioralInsightsDTO;
   insights: string[];
 };
 
@@ -61,6 +64,7 @@ export function AnalyticsClient() {
         score: Number(item.score ?? 0)
       })),
       taskTrend: payload.taskTrend ?? { completed: 0, active: 0, archived: 0 },
+      behavioralInsights: normalizeBehavioralInsights(payload, defaultBehavioralInsights),
       insights: payload.insights ?? []
     });
   }, []);
@@ -141,6 +145,31 @@ export function AnalyticsClient() {
               </BarChart>
             </ResponsiveContainer>
           </div>
+        </Card>
+      </div>
+
+      <div className="grid gap-4 md:grid-cols-3">
+        <Card className="p-5">
+          <Brain className="mb-4 h-5 w-5 text-amber" />
+          <p className="text-sm font-extrabold uppercase tracking-[0.18em] text-amber">Completion rate</p>
+          <p className="mt-3 font-display text-3xl font-extrabold">{data.behavioralInsights.completionRate}%</p>
+          <p className="mt-2 text-sm leading-6 text-muted">
+            {data.behavioralInsights.completedSessions} completed from {data.behavioralInsights.totalSessions} attempted sessions.
+          </p>
+        </Card>
+        <Card className="p-5">
+          <p className="text-sm font-extrabold uppercase tracking-[0.18em] text-danger">Main distraction</p>
+          <p className="mt-3 font-display text-2xl font-extrabold">{data.behavioralInsights.topDistraction}</p>
+          <p className="mt-2 text-sm leading-6 text-muted">
+            Early exits and reflections both feed this pattern so it gets more accurate over time.
+          </p>
+        </Card>
+        <Card className="p-5">
+          <p className="text-sm font-extrabold uppercase tracking-[0.18em] text-mint">World state</p>
+          <p className="mt-3 font-display text-2xl font-extrabold">
+            {data.behavioralInsights.environmentStatus === "locked" ? "Locked" : "Active"}
+          </p>
+          <p className="mt-2 text-sm leading-6 text-muted">{data.behavioralInsights.motivation.message}</p>
         </Card>
       </div>
 

@@ -8,10 +8,16 @@ import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ui/ca
 import { Progress } from "@/components/ui/progress";
 import { getNextStage, getStage, getStageProgressPercent, getXpToNextLevel } from "@/lib/progression";
 import { worldStages } from "@/lib/constants";
-import type { ProgressDTO } from "@/lib/types";
+import type { ProgressDTO, UnlockedElementDTO } from "@/lib/types";
 import { cn } from "@/lib/cn";
 
-export function WorldProgressCard({ progress }: { progress: ProgressDTO }) {
+export function WorldProgressCard({
+  progress,
+  unlockedElements = []
+}: {
+  progress: ProgressDTO;
+  unlockedElements?: UnlockedElementDTO[];
+}) {
   const current = getStage(progress.currentLevel);
   const next = getNextStage(progress.totalXp);
   const percent = getStageProgressPercent(progress.totalXp);
@@ -66,6 +72,21 @@ export function WorldProgressCard({ progress }: { progress: ProgressDTO }) {
           <span className="text-cyan">{getXpToNextLevel(progress.totalXp)} XP to next</span>
         </div>
         <Progress value={percent} />
+        {unlockedElements.length > 0 ? (
+          <div className="mt-4 flex flex-wrap gap-2">
+            {unlockedElements.slice(0, 5).map((element) => (
+              <span
+                key={`${element.stage}-${element.elementName}`}
+                className={cn(
+                  "rounded-full border px-3 py-1 text-xs font-bold",
+                  element.locked ? "border-danger/25 bg-danger/10 text-danger" : "border-mint/25 bg-mint/10 text-mint"
+                )}
+              >
+                {element.elementName}
+              </span>
+            ))}
+          </div>
+        ) : null}
         <Link href="/progress" className="mt-5 flex items-center gap-2 text-sm font-bold text-cyan">
           <Map className="h-4 w-4" />
           Open full progress map

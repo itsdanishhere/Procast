@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { ExternalLink, Pause, Play, RotateCcw, TimerReset } from "lucide-react";
+import { ExternalLink, Home, Pause, Play, RotateCcw, TimerReset } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 
@@ -21,6 +21,12 @@ type ExternalTimerState = {
 };
 
 type ExternalOpenMode = "auto" | "manual";
+type ExternalRenderMode = "document" | "video";
+
+type DocumentPiPBindings = {
+  window: Window;
+  cleanup: () => void;
+};
 
 export function FloatingTimer() {
   const {
@@ -47,6 +53,12 @@ export function FloatingTimer() {
   const lastOpenedAtRef = useRef(0);
   const mainWindowFocusedRef = useRef(typeof document === "undefined" ? true : document.hasFocus());
   const externalOpenModeRef = useRef<ExternalOpenMode | null>(null);
+  const externalRenderModeRef = useRef<ExternalRenderMode | null>(null);
+  const documentPiPRef = useRef<DocumentPiPBindings | null>(null);
+  const audioContextRef = useRef<AudioContext | null>(null);
+  const oscillatorRef = useRef<OscillatorNode | null>(null);
+  const gainRef = useRef<GainNode | null>(null);
+  const musicEnabledRef = useRef(false);
   const syncTimeoutRef = useRef<number | null>(null);
   const latestRef = useRef<ExternalTimerState>({
     label,
@@ -208,6 +220,328 @@ export function FloatingTimer() {
     ctx.fillText("Return", 303, 221);
   }, []);
 
+  const renderDocumentTimer = useCallback(() => {
+    const pip = documentPiPRef.current;
+    if (!pip) return;
+    const latest = latestRef.current;
+    const doc = pip.window.document;
+    const progress = latest.durationSeconds
+      ? ((latest.durationSeconds - latest.remainingSeconds) / latest.durationSeconds) * 100
+      : 0;
+
+    const statusEl = doc.getElementById("procast-pip-status");
+    const labelEl = doc.getElementById("procast-pip-label");
+    const taskEl = doc.getElementById("procast-pip-task");
+    const timeEl = doc.getElementById("procast-pip-time");
+    const progressEl = doc.getElementById("procast-pip-progress");
+    const actionEl = doc.getElementById("procast-pip-action");
+    const musicEl = doc.getElementById("procast-pip-music");
+
+    if (statusEl) statusEl.textContent = latest.status.toUpperCase();
+    if (labelEl) labelEl.textContent = latest.label || "Focus";
+    if (taskEl) taskEl.textContent = latest.taskTitle || "Protect your world";
+    if (timeEl) timeEl.textContent = formatSeconds(latest.remainingSeconds);
+    if (progressEl) (progressEl as HTMLElement).style.width = `${Math.max(0, Math.min(100, progress))}%`;
+    if (actionEl) actionEl.textContent = latest.status === "running" ? "⏸" : "▶";
+    if (musicEl) {
+      musicEl.textContent = "♪";
+      musicEl.setAttribute("data-muted", musicEnabledRef.current ? "false" : "true");
+    }
+  }, []);
+
+  const stopAmbientSound = useCallback(() => {
+    try {
+      oscillatorRef.current?.stop();
+    } catch {
+      // Ignore if oscillator already stopped.
+    }
+    oscillatorRef.current?.disconnect();
+    gainRef.current?.disconnect();
+    oscillatorRef.current = null;
+    gainRef.current = null;
+    musicEnabledRef.current = false;
+    renderDocumentTimer();
+  }, [renderDocumentTimer]);
+
+  const toggleAmbientSound = useCallback(async () => {
+    if (musicEnabledRef.current) {
+      stopAmbientSound();
+      return;
+    }
+
+    const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
+    if (!AudioCtx) {
+      toast.error("Ambient audio is not supported in this browser.");
+      return;
+    }
+
+    const ctx = audioContextRef.current ?? new AudioCtx();
+    audioContextRef.current = ctx;
+    if (ctx.state === "suspended") {
+      await ctx.resume();
+    }
+
+    const oscillator = ctx.createOscillator();
+    const gain = ctx.createGain();
+    oscillator.type = "triangle";
+    oscillator.frequency.value = 174;
+    gain.gain.value = 0.012;
+    oscillator.connect(gain);
+    gain.connect(ctx.destination);
+    oscillator.start();
+
+    oscillatorRef.current = oscillator;
+    gainRef.current = gain;
+    musicEnabledRef.current = true;
+    renderDocumentTimer();
+  }, [renderDocumentTimer, stopAmbientSound]);
+
+  const closeDocumentPiP = useCallback(() => {
+    const pip = documentPiPRef.current;
+    if (!pip) return;
+    try {
+      pip.cleanup();
+      if (!pip.window.closed) pip.window.close();
+    } catch {
+      // Ignore close errors when browser is already tearing down the window.
+    } finally {
+      documentPiPRef.current = null;
+    }
+  }, []);
+
+  const openDocumentPiP = useCallback(async () => {
+    const docPiP = (window as any).documentPictureInPicture;
+    if (!docPiP || typeof docPiP.requestWindow !== "function") return false;
+    if (documentPiPRef.current?.window && !documentPiPRef.current.window.closed) {
+      externalRenderModeRef.current = "document";
+      setExternalActive(true);
+      renderDocumentTimer();
+      return true;
+    }
+
+    try {
+      const pipWindow = await docPiP.requestWindow({
+        width: 400,
+        height: 280,
+        preferInitialWindowPlacement: true
+      });
+      const doc = pipWindow.document;
+      doc.head.innerHTML = `
+        <style>
+          :root { color-scheme: dark; }
+          * { box-sizing: border-box; }
+          body {
+            margin: 0;
+            padding: 16px;
+            font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+            background: #08090f;
+            color: #eef2f7;
+          }
+          .card {
+            width: 100%;
+            height: 100%;
+            border-radius: 22px;
+            border: 1px solid rgba(99,179,237,0.35);
+            background:
+              linear-gradient(180deg, rgba(255,255,255,0.05), rgba(255,255,255,0.02)),
+              radial-gradient(120% 120% at 100% 100%, rgba(37,99,235,0.18), rgba(8,9,15,0));
+            padding: 14px 16px;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+          }
+          .top { display: flex; align-items: center; justify-content: space-between; }
+          .eyebrow { font-size: 12px; font-weight: 800; letter-spacing: .16em; text-transform: uppercase; color: #63b3ed; }
+          .status { font-size: 10px; font-weight: 700; text-transform: uppercase; padding: 4px 10px; border-radius: 999px; background: rgba(255,255,255,.1); color: rgba(255,255,255,.75); }
+          .row { display: flex; align-items: end; justify-content: space-between; gap: 12px; }
+          .label { font-size: 40px; font-weight: 900; line-height: 1; letter-spacing: 0; font-variant-numeric: tabular-nums; }
+          .title { font-size: 42px; font-weight: 900; margin: 0; line-height: 1.05; }
+          .task { margin-top: 6px; font-size: 14px; color: rgba(255,255,255,.62); }
+          .progress-track { width: 100%; height: 8px; border-radius: 999px; background: rgba(255,255,255,.12); overflow: hidden; }
+          .progress-fill { height: 100%; width: 0%; border-radius: inherit; background: linear-gradient(90deg, #2b6cf0, #76e4a7); transition: width .2s linear; }
+          .actions {
+            margin-top: 2px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+          }
+          button {
+            border: 1px solid rgba(255,255,255,.16);
+            background: rgba(255,255,255,.06);
+            color: #eef2f7;
+            border-radius: 999px;
+            height: 56px;
+            width: 56px;
+            min-width: 56px;
+            font-weight: 700;
+            cursor: pointer;
+            transition: transform .14s ease, background .14s ease, border-color .14s ease, box-shadow .14s ease;
+          }
+          button:hover {
+            transform: translateY(-1px) scale(1.03);
+            background: rgba(255,255,255,.15);
+            border-color: rgba(255,255,255,.28);
+            box-shadow: 0 8px 20px rgba(0,0,0,.35);
+          }
+          button:active { transform: scale(.98); }
+          .icon-btn {
+            font-size: 31px;
+            font-weight: 900;
+            line-height: 1;
+            letter-spacing: 0;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+          }
+          #procast-pip-action {
+            letter-spacing: 0.02em;
+            font-size: 30px;
+          }
+          .danger { border-color: rgba(255,124,124,.38); color: #ff7c7c; background: rgba(255,124,124,.13); }
+          .danger:hover { border-color: rgba(255,124,124,.65); background: rgba(255,124,124,.2); }
+          .music {
+            background: #2563eb;
+            border-color: rgba(79,126,255,.65);
+            color: #fff;
+            box-shadow: 0 10px 26px rgba(37,99,235,.35);
+            position: relative;
+            overflow: hidden;
+          }
+          .music[data-muted="true"]::after {
+            content: "";
+            position: absolute;
+            width: 38px;
+            height: 3px;
+            background: #ff5c5c;
+            border-radius: 999px;
+            transform: rotate(-36deg);
+            transform-origin: center;
+            pointer-events: none;
+          }
+        </style>
+      `;
+      doc.body.innerHTML = `
+        <div class="card">
+          <div class="top">
+            <div class="eyebrow">FOCUS LIVE</div>
+            <div id="procast-pip-status" class="status">RUNNING</div>
+          </div>
+          <div class="row">
+            <div>
+              <p id="procast-pip-label" class="title">Focus</p>
+              <p id="procast-pip-task" class="task">Protect your world</p>
+            </div>
+            <div id="procast-pip-time" class="label">00:00</div>
+          </div>
+          <div class="progress-track"><div id="procast-pip-progress" class="progress-fill"></div></div>
+          <div class="actions">
+            <button id="procast-pip-action" class="icon-btn" aria-label="Pause or resume timer">⏸</button>
+            <button id="procast-pip-external" class="icon-btn" aria-label="Go to ProCast dashboard">↗</button>
+            <button id="procast-pip-reset" class="icon-btn danger" aria-label="End timer">×</button>
+            <button id="procast-pip-music" class="music icon-btn" aria-label="Toggle focus music">♪</button>
+          </div>
+        </div>
+      `;
+
+      const actionButton = doc.getElementById("procast-pip-action") as HTMLButtonElement | null;
+      const externalButton = doc.getElementById("procast-pip-external") as HTMLButtonElement | null;
+      const resetButton = doc.getElementById("procast-pip-reset") as HTMLButtonElement | null;
+      const musicButton = doc.getElementById("procast-pip-music") as HTMLButtonElement | null;
+
+      const onAction = async () => {
+        const currentSessionId = backendSessionId;
+        if (latestRef.current.status === "running") {
+          if (!currentSessionId) {
+            pause();
+            return;
+          }
+          const response = await apiFetch(`/timer/sessions/${currentSessionId}/pause`, {
+            method: "POST",
+            body: JSON.stringify({})
+          });
+          if (!response.ok) {
+            toast.error("Could not pause backend timer.");
+            return;
+          }
+          pause();
+          return;
+        }
+
+        if (!currentSessionId) {
+          resume();
+          return;
+        }
+        const response = await apiFetch(`/timer/sessions/${currentSessionId}/resume`, {
+          method: "POST",
+          body: JSON.stringify({})
+        });
+        if (!response.ok) {
+          toast.error("Could not resume backend timer.");
+          return;
+        }
+        resume();
+      };
+      const onReset = async () => {
+        const currentSessionId = backendSessionId;
+        if ((latestRef.current.status === "running" || latestRef.current.status === "paused") && currentSessionId) {
+          const response = await apiFetch(`/timer/sessions/${currentSessionId}/abandon`, {
+            method: "POST",
+            body: JSON.stringify({
+              reason: "User reset from external timer."
+            })
+          });
+          if (!response.ok) {
+            toast.error("Could not end backend timer.");
+            return;
+          }
+        }
+        reset();
+      };
+      const goDashboard = () => {
+        try {
+          if (window.location.pathname !== "/dashboard") {
+            window.location.href = "/dashboard";
+          }
+          window.focus();
+        } catch {
+          // Ignore focus errors.
+        }
+      };
+      const onExternal = () => goDashboard();
+      const onMusic = () => void toggleAmbientSound();
+      actionButton?.addEventListener("click", onAction);
+      resetButton?.addEventListener("click", onReset);
+      musicButton?.addEventListener("click", onMusic);
+      externalButton?.addEventListener("click", onExternal);
+
+      const onPageHide = () => {
+        externalOpenModeRef.current = null;
+        externalRenderModeRef.current = null;
+        documentPiPRef.current = null;
+        setExternalActive(false);
+      };
+      pipWindow.addEventListener("pagehide", onPageHide);
+      documentPiPRef.current = {
+        window: pipWindow,
+        cleanup: () => {
+          actionButton?.removeEventListener("click", onAction);
+          resetButton?.removeEventListener("click", onReset);
+          musicButton?.removeEventListener("click", onMusic);
+          externalButton?.removeEventListener("click", onExternal);
+          pipWindow.removeEventListener("pagehide", onPageHide);
+        }
+      };
+
+      externalRenderModeRef.current = "document";
+      setExternalActive(true);
+      renderDocumentTimer();
+      return true;
+    } catch {
+      return false;
+    }
+  }, [backendSessionId, pause, renderDocumentTimer, reset, resume]);
+
   const startExternalAnimation = useCallback(() => {
     if (!canvasRef.current) return;
     const ctx = canvasRef.current.getContext("2d");
@@ -272,6 +606,7 @@ export function FloatingTimer() {
 
   const exitExternalTimer = useCallback(async (force = true) => {
     if (!force && externalOpenModeRef.current === "manual") return;
+    closeDocumentPiP();
     if (document.pictureInPictureElement) {
       try {
         await document.exitPictureInPicture();
@@ -279,15 +614,23 @@ export function FloatingTimer() {
         // The browser may already be exiting PiP after a focus change.
       }
     }
+    externalRenderModeRef.current = null;
     externalOpenModeRef.current = null;
     setExternalActive(false);
-  }, []);
+  }, [closeDocumentPiP]);
 
   const enterExternalTimer = useCallback(async (mode: ExternalOpenMode = "manual") => {
     if (enteringExternalRef.current) return;
     if (latestRef.current.status !== "running" && latestRef.current.status !== "paused") return;
-    if (!document.pictureInPictureEnabled) return;
+    if (documentPiPRef.current?.window && !documentPiPRef.current.window.closed) {
+      externalRenderModeRef.current = "document";
+      externalOpenModeRef.current = mode;
+      setExternalActive(true);
+      renderDocumentTimer();
+      return;
+    }
     if (document.pictureInPictureElement) {
+      externalRenderModeRef.current = "video";
       externalOpenModeRef.current = mode;
       setExternalActive(true);
       return;
@@ -298,19 +641,31 @@ export function FloatingTimer() {
 
     enteringExternalRef.current = true;
     try {
+      const documentOpened = await openDocumentPiP();
+      if (documentOpened) {
+        externalRenderModeRef.current = "document";
+        externalOpenModeRef.current = mode;
+        lastOpenedAtRef.current = Date.now();
+        setExternalActive(true);
+        return;
+      }
+
+      if (!document.pictureInPictureEnabled) return;
       const ready = await ensureExternalVideo();
       if (!ready || !videoRef.current) return;
       await videoRef.current.requestPictureInPicture();
+      externalRenderModeRef.current = "video";
       externalOpenModeRef.current = mode;
       lastOpenedAtRef.current = Date.now();
       setExternalActive(true);
     } catch {
+      externalRenderModeRef.current = null;
       externalOpenModeRef.current = null;
       setExternalActive(false);
     } finally {
       enteringExternalRef.current = false;
     }
-  }, [ensureExternalVideo]);
+  }, [ensureExternalVideo, openDocumentPiP, renderDocumentTimer]);
 
   const syncExternalMode = useCallback(() => {
     const active = latestRef.current.status === "running" || latestRef.current.status === "paused";
@@ -412,14 +767,17 @@ export function FloatingTimer() {
 
   useEffect(() => {
     if (status !== "running" && status !== "paused") return;
+    renderDocumentTimer();
     const watchdog = window.setInterval(() => {
       syncExternalMode();
+      renderDocumentTimer();
     }, 1500);
     return () => window.clearInterval(watchdog);
-  }, [status, syncExternalMode]);
+  }, [renderDocumentTimer, status, syncExternalMode]);
 
   useEffect(() => {
     if (status === "idle" || status === "completed") {
+      stopAmbientSound();
       void exitExternalTimer();
       if (animationRef.current) window.cancelAnimationFrame(animationRef.current);
       animationRef.current = null;
@@ -427,9 +785,18 @@ export function FloatingTimer() {
       videoRef.current?.remove();
       videoRef.current = null;
       canvasRef.current = null;
+      closeDocumentPiP();
     }
     syncExternalMode();
-  }, [exitExternalTimer, status, syncExternalMode]);
+  }, [closeDocumentPiP, exitExternalTimer, status, stopAmbientSound, syncExternalMode]);
+
+  useEffect(() => {
+    return () => {
+      stopAmbientSound();
+      closeDocumentPiP();
+      if (animationRef.current) window.cancelAnimationFrame(animationRef.current);
+    };
+  }, [closeDocumentPiP, stopAmbientSound]);
 
   async function pauseTimer() {
     if (status !== "running") return;
@@ -534,7 +901,7 @@ export function FloatingTimer() {
 
         <Progress value={progress} className="mb-3 h-1.5" />
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center justify-center gap-2">
           {status === "running" ? (
             <Button type="button" size="icon" variant="secondary" onClick={() => void pauseTimer()} aria-label="Pause timer">
               <Pause className="h-4 w-4" />
@@ -561,9 +928,11 @@ export function FloatingTimer() {
           <Link
             id="return-btn"
             href="/dashboard"
-            className={cn(buttonVariants({ size: "sm" }), "flex-1")}
+            className={cn(buttonVariants({ size: "icon" }), "h-10 w-10 shrink-0")}
+            aria-label="Go to dashboard"
+            title="Go to dashboard"
           >
-            Return
+            <Home className="h-5 w-5" />
           </Link>
         </div>
       </div>

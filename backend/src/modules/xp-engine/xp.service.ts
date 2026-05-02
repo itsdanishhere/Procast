@@ -3,20 +3,13 @@ import type { DbClient } from "../../shared/prisma/types";
 import { jsonInput } from "../../shared/prisma/types";
 import { worldProgressionService } from "../world-progression/world.service";
 
-const focusXp: Record<string, number> = {
-  POMODORO: 35,
-  SHORT_BREAK: 0,
-  LONG_BREAK: 0,
-  DEEP_FOCUS_45: 80,
-  DEEP_FOCUS_60: 110,
-  CUSTOM: 60
-};
-
 export class XpService {
   sessionXp(mode: string, plannedSeconds: number) {
-    const base = focusXp[mode] ?? 35;
-    const enduranceBonus = plannedSeconds >= 45 * 60 ? 20 : 0;
-    return base + enduranceBonus;
+    if (mode === "SHORT_BREAK" || mode === "LONG_BREAK") {
+      return 0;
+    }
+    // Global standard: 1 XP per 1 minute of focus
+    return Math.floor(plannedSeconds / 60);
   }
 
   async grant(input: {

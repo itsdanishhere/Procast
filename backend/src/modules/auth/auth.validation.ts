@@ -2,7 +2,7 @@ import { z } from "zod";
 
 const passwordSchema = z
   .string()
-  .min(10, "Password must be at least 10 characters.")
+  .min(9, "Password must be at least 9 characters.")
   .regex(/[A-Z]/, "Password must include an uppercase letter.")
   .regex(/[0-9]/, "Password must include a number.");
 

@@ -23,7 +23,8 @@ export const worldStages = [
     threshold: 0,
     description: "A quiet plot waiting for proof that you can begin.",
     accent: "#63b3ed",
-    symbol: "□"
+    symbol: "□",
+    subElements: ["Boundary Markers", "Starter Path", "Foundation Plot"]
   },
   {
     level: 2,
@@ -31,7 +32,8 @@ export const worldStages = [
     threshold: 120,
     description: "Your first shelter appears after consistent starts.",
     accent: "#76e4a7",
-    symbol: "⌂"
+    symbol: "⌂",
+    subElements: ["Roof Frame", "Front Door", "Warm Lights"]
   },
   {
     level: 3,
@@ -39,7 +41,8 @@ export const worldStages = [
     threshold: 280,
     description: "The foundation strengthens as your sessions stack.",
     accent: "#90cdf4",
-    symbol: "⌂"
+    symbol: "⌂",
+    subElements: ["Second Floor", "Stronger Walls", "Study Room"]
   },
   {
     level: 4,
@@ -47,7 +50,8 @@ export const worldStages = [
     threshold: 480,
     description: "Discipline starts to feel alive and visible.",
     accent: "#68d391",
-    symbol: "✦"
+    symbol: "✦",
+    subElements: ["Flower Beds", "Water Fountain", "Stone Walkway"]
   },
   {
     level: 5,
@@ -55,7 +59,8 @@ export const worldStages = [
     threshold: 720,
     description: "Your habit becomes a path you can return to.",
     accent: "#f6e05e",
-    symbol: "━"
+    symbol: "━",
+    subElements: ["Street Lamps", "Road Markers", "Crossing Gate"]
   },
   {
     level: 6,
@@ -63,7 +68,8 @@ export const worldStages = [
     threshold: 1020,
     description: "Focus sessions start forming a real system.",
     accent: "#f6ad55",
-    symbol: "▣"
+    symbol: "▣",
+    subElements: ["Town Hall", "Market Row", "Clock Tower"]
   },
   {
     level: 7,
@@ -71,7 +77,8 @@ export const worldStages = [
     threshold: 1380,
     description: "Your world is now protected by repeated effort.",
     accent: "#b794f4",
-    symbol: "▦"
+    symbol: "▦",
+    subElements: ["Village Square", "Community Homes", "Bridge"]
   },
   {
     level: 8,
@@ -79,7 +86,8 @@ export const worldStages = [
     threshold: 1800,
     description: "Momentum compounds into visible self-trust.",
     accent: "#63b3ed",
-    symbol: "▩"
+    symbol: "▩",
+    subElements: ["Transit Hub", "Work District", "Public Garden"]
   },
   {
     level: 9,
@@ -87,7 +95,8 @@ export const worldStages = [
     threshold: 2300,
     description: "Focused days now shape something hard to abandon.",
     accent: "#76e4a7",
-    symbol: "▥"
+    symbol: "▥",
+    subElements: ["Skyline Block", "Metro Core", "Innovation Center"]
   },
   {
     level: 10,
@@ -95,7 +104,8 @@ export const worldStages = [
     threshold: 2900,
     description: "Your discipline has become an identity.",
     accent: "#f6ad55",
-    symbol: "♜"
+    symbol: "♜",
+    subElements: ["Citadel", "Royal District", "Throne Hall"]
   }
 ] as const;
 

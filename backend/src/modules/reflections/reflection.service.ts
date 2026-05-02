@@ -16,11 +16,23 @@ export class ReflectionService {
         data: {
           userId,
           focusSessionId: input.focusSessionId,
+          focusRating: input.focusRating,
           distraction: input.distraction,
           wentWell: input.wentWell,
           improveTomorrow: input.improveTomorrow,
+          reflectionNotes: input.reflectionNotes,
           emotionalTone: input.emotionalTone,
           patternTags: input.patternTags
+        }
+      });
+
+      await tx.distractionLog.create({
+        data: {
+          userId,
+          focusSessionId: input.focusSessionId,
+          reasonCategory: input.distraction.slice(0, 80),
+          customReason: input.distraction,
+          source: "reflection"
         }
       });
 

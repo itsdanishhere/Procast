@@ -1,31 +1,45 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { ArrowRight, Lock, ShieldCheck, Sparkles } from "lucide-react";
+import { ArrowRight, CheckCircle2, Circle, Lock, ShieldCheck, Sparkles } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { getNextStage, getStageProgressPercent, getXpToNextLevel } from "@/lib/progression";
 import { worldStages } from "@/lib/constants";
-import type { ProgressDTO } from "@/lib/types";
+import type { BehavioralInsightsDTO, ProgressDTO } from "@/lib/types";
 import { cn } from "@/lib/cn";
-import { fetchCurrentUserProgress } from "@/lib/live-data";
+import { defaultBehavioralInsights, fetchBehavioralInsights, fetchCurrentUserProgress } from "@/lib/live-data";
 import { appDataRefreshEvent } from "@/lib/timer-events";
 
 export function ProgressMapPage({ progress }: { progress: ProgressDTO }) {
   const [currentProgress, setCurrentProgress] = useState(progress);
+  const [behavior, setBehavior] = useState<BehavioralInsightsDTO>(defaultBehavioralInsights);
   const totalXp = currentProgress.totalXp ?? 0;
   const currentLevel = currentProgress.currentLevel ?? 1;
   const next = getNextStage(totalXp);
   const percent = getStageProgressPercent(totalXp);
 
+  function unlockedSubElementCount(level: number, threshold: number, nextThreshold: number, protectedStage: boolean) {
+    if (!protectedStage) return 0;
+    if (currentLevel > level) return 3;
+    if (currentLevel < level) return 0;
+    const span = Math.max(1, nextThreshold - threshold);
+    const stageProgress = Math.max(0, Math.min(1, (totalXp - threshold) / span));
+    return Math.max(1, Math.min(3, Math.ceil(stageProgress * 3)));
+  }
+
   useEffect(() => {
     let cancelled = false;
 
     async function loadProgress() {
-      const latest = await fetchCurrentUserProgress(progress);
+      const [latest, latestBehavior] = await Promise.all([
+        fetchCurrentUserProgress(progress),
+        fetchBehavioralInsights(defaultBehavioralInsights)
+      ]);
       if (!cancelled && latest) setCurrentProgress(latest);
+      if (!cancelled) setBehavior(latestBehavior);
     }
 
     function handleProgress(event: Event) {
@@ -67,6 +81,8 @@ export function ProgressMapPage({ progress }: { progress: ProgressDTO }) {
               const unlocked = stage.level <= currentProgress.unlockedStage;
               const protectedStage = stage.level <= currentProgress.lockedStage;
               const current = stage.level === currentLevel;
+              const nextThreshold = worldStages[index + 1]?.threshold ?? stage.threshold + 600;
+              const elementUnlockCount = unlockedSubElementCount(stage.level, stage.threshold, nextThreshold, protectedStage);
               return (
                 <div key={stage.level} className="relative">
                   {index < worldStages.length - 1 ? (
@@ -100,6 +116,24 @@ export function ProgressMapPage({ progress }: { progress: ProgressDTO }) {
                       {stage.symbol}
                     </div>
                     <p className="text-sm leading-6 text-muted">{stage.description}</p>
+                    <div className="mt-4 space-y-2 rounded-xl border border-white/10 bg-black/20 p-3">
+                      <p className="text-[11px] font-extrabold uppercase tracking-[0.14em] text-muted">
+                        Level elements {elementUnlockCount}/3
+                      </p>
+                      {stage.subElements.map((element, elementIndex) => {
+                        const isElementUnlocked = elementIndex < elementUnlockCount;
+                        return (
+                          <div key={`${stage.level}-${element}`} className="flex items-center gap-2 text-xs">
+                            {isElementUnlocked ? (
+                              <CheckCircle2 className="h-3.5 w-3.5 text-mint" />
+                            ) : (
+                              <Circle className="h-3.5 w-3.5 text-white/35" />
+                            )}
+                            <span className={isElementUnlocked ? "text-foreground" : "text-muted"}>{element}</span>
+                          </div>
+                        );
+                      })}
+                    </div>
                     <p className="mt-4 text-xs font-bold text-cyan">{stage.threshold} XP required</p>
                   </div>
                 </div>
@@ -139,6 +173,29 @@ export function ProgressMapPage({ progress }: { progress: ProgressDTO }) {
           </p>
         </Card>
       </div>
+
+      {behavior.unlockedElements.length > 0 ? (
+        <Card>
+          <p className="text-sm font-extrabold uppercase tracking-[0.18em] text-cyan">Unlocked world elements</p>
+          <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-5">
+            {behavior.unlockedElements.map((element) => (
+              <div
+                key={`${element.stage}-${element.elementName}`}
+                className={cn(
+                  "rounded-2xl border p-4",
+                  element.locked ? "border-danger/25 bg-danger/10" : "border-mint/25 bg-mint/10"
+                )}
+              >
+                <p className="text-xs font-extrabold uppercase tracking-[0.14em] text-muted">{element.stageName}</p>
+                <p className="mt-2 font-bold">{element.elementName}</p>
+                <p className={cn("mt-2 text-xs font-bold", element.locked ? "text-danger" : "text-mint")}>
+                  {element.locked ? "Locked by pressure" : "Protected"}
+                </p>
+              </div>
+            ))}
+          </div>
+        </Card>
+      ) : null}
     </div>
   );
 }

@@ -27,10 +27,45 @@ export function SignupForm() {
     setForm((current) => ({ ...current, [field]: value }));
   }
 
+  function validateForm() {
+    if (form.fullName.trim().length < 2) return "Full name must be at least 2 characters.";
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email.trim())) return "Enter a valid email address.";
+    if (!/^[a-zA-Z0-9_]{3,30}$/.test(form.username.trim())) {
+      return "Username must be 3-30 characters and use only letters, numbers, or underscore.";
+    }
+    if (form.password.length < 9) return "Password must be at least 9 characters.";
+    if (!/[A-Z]/.test(form.password)) return "Password must include at least one uppercase letter.";
+    if (!/[0-9]/.test(form.password)) return "Password must include at least one number.";
+    if (form.password !== form.confirmPassword) return "Password and confirm password must match.";
+    return "";
+  }
+
+  function parseBackendError(data: any) {
+    const fallback = "Account creation failed.";
+    if (!data?.error) return fallback;
+    if (typeof data.error === "string") return data.error;
+    if (data.error.message !== "Please check the submitted fields.") return data.error.message || fallback;
+    const fieldErrors = data.error?.details?.fieldErrors;
+    if (!fieldErrors || typeof fieldErrors !== "object") return data.error.message || fallback;
+    const orderedFields = ["fullName", "email", "username", "password", "timezone"];
+    for (const field of orderedFields) {
+      const messages = fieldErrors[field];
+      if (Array.isArray(messages) && messages.length > 0) return String(messages[0]);
+    }
+    return data.error.message || fallback;
+  }
+
   async function onSubmit(event: FormEvent) {
     event.preventDefault();
-    setLoading(true);
     setError("");
+
+    const validationError = validateForm();
+    if (validationError) {
+      setError(validationError);
+      return;
+    }
+
+    setLoading(true);
 
     const response = await apiFetch("/auth/signup", {
       method: "POST",
@@ -46,8 +81,7 @@ export function SignupForm() {
     setLoading(false);
 
     if (!response.ok) {
-      const errorMsg = typeof data.error === "object" ? data.error.message || JSON.stringify(data.error) : data.error;
-      setError(errorMsg || "Account creation failed.");
+      setError(parseBackendError(data));
       return;
     }
 
@@ -86,9 +120,11 @@ export function SignupForm() {
             value={form.password}
             onChange={(event) => update("password", event.target.value)}
             required
+            minLength={9}
             autoComplete="new-password"
           />
           <PasswordStrength password={form.password} />
+          <p className="mt-2 text-xs text-muted">Use at least 9 characters, one uppercase letter, and one number.</p>
         </label>
         <label className="block">
           <span className="mb-2 block text-sm font-bold text-muted">Confirm password</span>

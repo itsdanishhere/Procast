@@ -1,6 +1,6 @@
 import { apiFetch } from "@/lib/api-client";
 import { emitProgressUpdate, normalizeProgress } from "@/lib/progress-dto";
-import type { ProgressDTO, ReflectionDTO, SessionDTO, SettingsDTO, TaskDTO } from "@/lib/types";
+import type { BehavioralInsightsDTO, MotivationDTO, ProgressDTO, ReflectionDTO, SessionDTO, SettingsDTO, TaskDTO } from "@/lib/types";
 
 export const defaultSettings: SettingsDTO = {
   dailyFocusGoal: 3,
@@ -77,7 +77,8 @@ export function normalizeSession(session: any): SessionDTO {
     xpEarned: numberValue(session.xpEarned, 0),
     startedAt: session.startedAt ?? session.createdAt ?? new Date().toISOString(),
     endedAt: session.endedAt ?? session.completedAt ?? session.abandonedAt ?? session.updatedAt ?? new Date().toISOString(),
-    task: session.task ? { title: String(session.task.title ?? "Untitled task") } : null
+    task: session.task ? { title: String(session.task.title ?? "Untitled task") } : null,
+    distractionReason: session.distractionReason ?? session.distractionLogs?.[0]?.reasonCategory ?? null
   };
 }
 
@@ -85,10 +86,62 @@ export function normalizeReflection(reflection: any): ReflectionDTO {
   return {
     id: String(reflection.id),
     sessionId: reflection.sessionId ?? reflection.focusSessionId ?? null,
+    focusRating: typeof reflection.focusRating === "number" ? reflection.focusRating : null,
     distraction: String(reflection.distraction ?? ""),
     wentWell: String(reflection.wentWell ?? ""),
     improve: String(reflection.improve ?? reflection.improveTomorrow ?? ""),
+    notes: reflection.notes ?? reflection.reflectionNotes ?? null,
     createdAt: reflection.createdAt ?? new Date().toISOString()
+  };
+}
+
+const defaultMotivation: MotivationDTO = {
+  messageType: "neutral",
+  message: "Complete one focused session to generate your next ProCast signal.",
+  missedDays: null
+};
+
+export const defaultBehavioralInsights: BehavioralInsightsDTO = {
+  completionRate: 100,
+  topDistraction: "None yet",
+  totalSessions: 0,
+  completedSessions: 0,
+  abandonedSessions: 0,
+  environmentStatus: "active",
+  unlockedElements: [],
+  motivation: defaultMotivation
+};
+
+export function normalizeBehavioralInsights(payload: any, fallback: BehavioralInsightsDTO = defaultBehavioralInsights): BehavioralInsightsDTO {
+  const source = objectValue(payload?.behavioralInsights ?? payload);
+  const summary = objectValue(payload?.summary);
+  const motivation = objectValue(source.motivation ?? payload?.motivation);
+
+  return {
+    completionRate: numberValue(source.completionRate, numberValue(summary.completionRate, fallback.completionRate)),
+    topDistraction: stringValue(source.topDistraction, stringValue(summary.topDistraction, fallback.topDistraction)),
+    totalSessions: numberValue(source.totalSessions, numberValue(summary.totalSessions, fallback.totalSessions)),
+    completedSessions: numberValue(source.completedSessions, numberValue(summary.completedSessions, fallback.completedSessions)),
+    abandonedSessions: numberValue(source.abandonedSessions, numberValue(summary.abandonedSessions, fallback.abandonedSessions)),
+    environmentStatus: source.environmentStatus === "locked" ? "locked" : "active",
+    unlockedElements: Array.isArray(source.unlockedElements)
+      ? source.unlockedElements.map((item: any) => ({
+          stage: String(item.stage ?? ""),
+          stageName: String(item.stageName ?? item.stage ?? ""),
+          elementName: String(item.elementName ?? item.stageName ?? item.stage ?? ""),
+          locked: Boolean(item.locked),
+          unlockedAt: item.unlockedAt ?? null,
+          lockedAt: item.lockedAt ?? null
+        }))
+      : fallback.unlockedElements,
+    motivation: {
+      messageType:
+        motivation.messageType === "encouragement" || motivation.messageType === "warning" || motivation.messageType === "locked"
+          ? motivation.messageType
+          : fallback.motivation.messageType,
+      message: stringValue(motivation.message, fallback.motivation.message),
+      missedDays: typeof motivation.missedDays === "number" ? motivation.missedDays : null
+    }
   };
 }
 
@@ -135,4 +188,11 @@ export async function fetchReflections() {
   if (!response.ok) return [];
   const data = await response.json();
   return (data.reflections ?? []).map(normalizeReflection);
+}
+
+export async function fetchBehavioralInsights(fallback: BehavioralInsightsDTO = defaultBehavioralInsights) {
+  const response = await apiFetch("/analytics/dashboard");
+  if (!response.ok) return fallback;
+  const data = await response.json();
+  return normalizeBehavioralInsights(data, fallback);
 }

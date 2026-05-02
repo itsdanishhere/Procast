@@ -14,21 +14,26 @@ import { cn } from "@/lib/cn";
 import { normalizeProgress } from "@/lib/progress-dto";
 import { externalTimerArmEvent } from "@/lib/timer-events";
 import { formatSeconds, TimerMode, useTimerStore } from "@/lib/timer-store";
-import type { ProgressDTO, SessionDTO, SettingsDTO, TaskDTO } from "@/lib/types";
+import type { BehavioralInsightsDTO, ProgressDTO, SessionDTO, SettingsDTO, TaskDTO } from "@/lib/types";
 
 type TimerEngineProps = {
   tasks: TaskDTO[];
   settings: SettingsDTO;
+  behavioralInsights?: BehavioralInsightsDTO;
   onSessionSaved: (session: SessionDTO, progress: ProgressDTO | null) => void;
 };
 
-export function TimerEngine({ tasks, settings, onSessionSaved }: TimerEngineProps) {
+const distractionOptions = ["Social Media", "Interruption", "Boredom", "Too Hard", "Other"];
+
+export function TimerEngine({ tasks, settings, behavioralInsights, onSessionSaved }: TimerEngineProps) {
   const timer = useTimerStore();
   const [selectedMode, setSelectedMode] = useState<TimerMode>("POMODORO");
   const [customMinutes, setCustomMinutes] = useState(settings.deepFocusMinutes);
   const [selectedTaskId, setSelectedTaskId] = useState<string>("");
   const [loading, setLoading] = useState(false);
   const [confirmExit, setConfirmExit] = useState(false);
+  const [exitReasonCategory, setExitReasonCategory] = useState("Social Media");
+  const [exitCustomReason, setExitCustomReason] = useState("");
   const heartbeatInFlight = useRef(false);
   const heartbeatAuthWarningShown = useRef(false);
   const timerStatusRef = useRef(timer.status);
@@ -111,7 +116,10 @@ export function TimerEngine({ tasks, settings, onSessionSaved }: TimerEngineProp
     return () => window.removeEventListener("beforeunload", beforeUnload);
   }, [timer.status]);
 
-  async function saveSession(status: "COMPLETED" | "ABANDONED" | "INTERRUPTED", reason?: string) {
+  async function saveSession(
+    status: "COMPLETED" | "ABANDONED" | "INTERRUPTED",
+    exitReason?: { reason?: string; reasonCategory?: string; customReason?: string }
+  ) {
     if (!timer.backendSessionId) {
       toast.error("Backend timer session was not created. Start the session again.");
       return;
@@ -119,9 +127,7 @@ export function TimerEngine({ tasks, settings, onSessionSaved }: TimerEngineProp
 
     const response = await apiFetch(`/timer/sessions/${timer.backendSessionId}/${status === "COMPLETED" ? "complete" : "abandon"}`, {
       method: "POST",
-      body: JSON.stringify({
-        reason
-      })
+      body: JSON.stringify(exitReason ?? {})
     });
     const data = await response.json();
 
@@ -239,7 +245,15 @@ export function TimerEngine({ tasks, settings, onSessionSaved }: TimerEngineProp
 
   async function endEarly() {
     setConfirmExit(false);
-    await saveSession("ABANDONED", "User ended the focus block before completion.");
+    const category = exitReasonCategory || "Unspecified";
+    const customReason = exitCustomReason.trim();
+    await saveSession("ABANDONED", {
+      reason: customReason || `User ended early: ${category}`,
+      reasonCategory: category,
+      customReason: customReason || undefined
+    });
+    setExitReasonCategory("Social Media");
+    setExitCustomReason("");
     timer.reset();
   }
 
@@ -430,11 +444,39 @@ export function TimerEngine({ tasks, settings, onSessionSaved }: TimerEngineProp
 
       {confirmExit ? (
         <div className="mt-5 rounded-2xl border border-danger/25 bg-danger/10 p-4">
-          <p className="font-bold text-danger">Quit this session?</p>
-          <p className="mt-1 text-sm text-muted">This records an incomplete session. Your progress will not grow.</p>
-          <div className="mt-4 flex gap-2">
+          <p className="font-bold text-danger">Hold on. What pulled you away?</p>
+          <p className="mt-1 text-sm text-muted">
+            Ending now records an incomplete session
+            {behavioralInsights ? ` and can lower your ${behavioralInsights.completionRate}% completion rate` : ""}.
+          </p>
+          <div className="mt-4 flex flex-wrap gap-2">
+            {distractionOptions.map((reason) => (
+              <button
+                key={reason}
+                type="button"
+                onClick={() => setExitReasonCategory(reason)}
+                className={cn(
+                  "rounded-full border px-3 py-1.5 text-xs font-bold transition",
+                  exitReasonCategory === reason
+                    ? "border-cyan bg-cyan text-[#071019]"
+                    : "border-white/10 bg-white/[0.05] text-muted hover:text-foreground"
+                )}
+              >
+                {reason}
+              </button>
+            ))}
+          </div>
+          {exitReasonCategory === "Other" ? (
+            <Input
+              className="mt-3"
+              value={exitCustomReason}
+              onChange={(event) => setExitCustomReason(event.target.value)}
+              placeholder="Name the distraction"
+            />
+          ) : null}
+          <div className="mt-4 flex flex-wrap gap-2">
             <Button variant="danger" size="sm" onClick={endEarly}>
-              Confirm penalty
+              End and log distraction
             </Button>
             <Button variant="secondary" size="sm" onClick={() => setConfirmExit(false)}>
               Keep focusing

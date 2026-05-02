@@ -39,7 +39,7 @@ export class TimerController {
   });
 
   abandon = asyncHandler(async (request, response) => {
-    const session = await timerService.abandon(request.auth!.userId, String(request.params.sessionId), request.body.reason);
+    const session = await timerService.abandon(request.auth!.userId, String(request.params.sessionId), request.body);
     response.json({ session });
   });
 }

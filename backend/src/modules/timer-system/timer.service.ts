@@ -145,7 +145,8 @@ export class TimerService {
       where: { userId, deletedAt: null },
       include: {
         task: { select: { title: true } },
-        xpEntries: { where: { reversedAt: null }, select: { amount: true } }
+        xpEntries: { where: { reversedAt: null }, select: { amount: true } },
+        distractionLogs: { orderBy: { createdAt: "desc" }, take: 1 }
       },
       orderBy: { createdAt: "desc" },
       take: Math.min(Math.max(limit, 1), 100)
@@ -161,7 +162,8 @@ export class TimerService {
       xpEarned: session.xpEntries.reduce((sum, entry) => sum + entry.amount, 0),
       startedAt: session.startedAt ?? session.createdAt,
       endedAt: session.completedAt ?? session.abandonedAt ?? session.updatedAt,
-      task: session.task
+      task: session.task,
+      distractionReason: session.distractionLogs[0]?.reasonCategory ?? null
     }));
   }
 
@@ -299,12 +301,18 @@ export class TimerService {
     });
   }
 
-  async abandon(userId: string, sessionId: string, reason?: string) {
+  async abandon(
+    userId: string,
+    sessionId: string,
+    input: { reason?: string; reasonCategory?: string; customReason?: string } = {}
+  ) {
     return prisma.$transaction(async (tx) => {
       const session = await tx.focusSession.findFirst({ where: { id: sessionId, userId } });
       if (!session) throw notFound("Focus session not found.");
       if (!isActiveStatus(session.status)) throw badRequest("Session is already closed.");
       const accumulatedFocusSeconds = computeAccumulatedSeconds(session);
+      const reasonCategory = input.reasonCategory?.trim() || "Unspecified";
+      const reason = input.reason?.trim() || reasonCategory;
       const updated = await tx.focusSession.update({
         where: { id: sessionId },
         data: {
@@ -315,15 +323,29 @@ export class TimerService {
           antiCheatFlags: [...(Array.isArray(session.antiCheatFlags) ? session.antiCheatFlags : []), { type: "early_exit", reason }]
         }
       });
+      await tx.distractionLog.create({
+        data: {
+          userId,
+          focusSessionId: sessionId,
+          reasonCategory,
+          customReason: input.customReason?.trim() || undefined,
+          source: "early_exit"
+        }
+      });
       await tx.timerEvent.create({
-        data: { userId, focusSessionId: sessionId, eventType: "ABANDONED", metadata: { reason, accumulatedFocusSeconds } }
+        data: {
+          userId,
+          focusSessionId: sessionId,
+          eventType: "ABANDONED",
+          metadata: { reason, reasonCategory, customReason: input.customReason, accumulatedFocusSeconds }
+        }
       });
       await notificationService.createInTransaction(
         {
           userId,
           type: "STREAK_WARNING",
           title: "Focus session ended early",
-          body: "Your world grows only from completed focus sessions."
+          body: `Logged distraction: ${reasonCategory}. Your world grows only from completed focus sessions.`
         },
         tx
       );

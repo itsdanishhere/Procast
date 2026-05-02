@@ -1,6 +1,84 @@
 import { endOfDay, startOfDay, subDays } from "date-fns";
 
 import { prisma } from "../../shared/prisma/client";
+import { localDateKey } from "../streak-engine/streak.service";
+import { stageIndex, worldStages } from "../world-progression/world.constants";
+
+const dayMs = 24 * 60 * 60 * 1000;
+
+const stageLabels: Record<string, string> = {
+  EMPTY_LAND: "Empty Land",
+  SMALL_HOUSE: "Small House",
+  BETTER_HOUSE: "Better House",
+  GARDEN: "Garden",
+  STREET: "Street",
+  TOWN: "Town",
+  VILLAGE: "Village",
+  LARGE_TOWN: "Large Town",
+  CITY: "City",
+  KINGDOM: "Kingdom"
+};
+
+const worldElementRewards: Record<string, string> = {
+  EMPTY_LAND: "Foundation Plot",
+  SMALL_HOUSE: "First Shelter",
+  BETTER_HOUSE: "Reinforced House",
+  GARDEN: "Discipline Garden",
+  STREET: "Focus Path",
+  TOWN: "Town Center",
+  VILLAGE: "Habit Village",
+  LARGE_TOWN: "Momentum District",
+  CITY: "Focus City",
+  KINGDOM: "Discipline Kingdom"
+};
+
+function daysBetween(previousKey: string, nextKey: string) {
+  return Math.round((Date.parse(`${nextKey}T00:00:00.000Z`) - Date.parse(`${previousKey}T00:00:00.000Z`)) / dayMs);
+}
+
+function buildMotivation(input: {
+  dailyStreak: number;
+  lastQualifiedDate: Date | null | undefined;
+  timezone: string;
+  environmentStatus: "active" | "locked";
+}) {
+  if (!input.lastQualifiedDate) {
+    return {
+      messageType: "encouragement",
+      message: "Welcome to ProCast. Complete your first focus session to start building your world.",
+      missedDays: null
+    };
+  }
+
+  const todayKey = localDateKey(new Date(), input.timezone);
+  const lastKey = localDateKey(input.lastQualifiedDate, input.timezone);
+  const missedDays = Math.max(0, daysBetween(lastKey, todayKey));
+
+  if (missedDays === 0) {
+    return {
+      messageType: "encouragement",
+      message: `Great job today. Your ${input.dailyStreak}-day streak is protecting your world.`,
+      missedDays
+    };
+  }
+
+  if (missedDays === 1) {
+    return {
+      messageType: "warning",
+      message: `Your world was quiet yesterday. Complete one session today to keep your ${input.dailyStreak}-day streak alive.`,
+      missedDays
+    };
+  }
+
+  return {
+    messageType: input.environmentStatus === "locked" ? "locked" : "warning",
+    message:
+      input.environmentStatus === "locked"
+        ? "Your world has lock pressure now. Complete a session to restart discipline and begin recovering protection."
+        : "You have been away for more than a day. A completed session today restarts progress pressure.",
+    missedDays
+  };
+}
 
 export class AnalyticsService {
   async dashboard(userId: string) {
@@ -8,15 +86,21 @@ export class AnalyticsService {
     const [
       progress,
       streak,
+      profile,
       sessions,
       snapshots,
       completedSessionsTotal,
+      allSessionsTotal,
+      abandonedSessionsTotal,
       completedTasks,
       activeTasks,
-      archivedTasks
+      archivedTasks,
+      distractionLogs,
+      worldUnlocks
     ] = await Promise.all([
       prisma.userProgress.findUnique({ where: { userId } }),
       prisma.userStreak.findUnique({ where: { userId } }),
+      prisma.userProfile.findUnique({ where: { userId } }),
       prisma.focusSession.findMany({
         where: { userId, createdAt: { gte: since }, deletedAt: null },
         orderBy: { createdAt: "asc" }
@@ -26,9 +110,20 @@ export class AnalyticsService {
         orderBy: { snapshotDate: "asc" }
       }),
       prisma.focusSession.count({ where: { userId, status: "COMPLETED", deletedAt: null } }),
+      prisma.focusSession.count({ where: { userId, deletedAt: null } }),
+      prisma.focusSession.count({ where: { userId, status: "ABANDONED", deletedAt: null } }),
       prisma.task.count({ where: { userId, status: "COMPLETED", deletedAt: null } }),
       prisma.task.count({ where: { userId, status: "ACTIVE", deletedAt: null } }),
-      prisma.task.count({ where: { userId, status: "ARCHIVED", deletedAt: null } })
+      prisma.task.count({ where: { userId, status: "ARCHIVED", deletedAt: null } }),
+      prisma.distractionLog.findMany({
+        where: { userId },
+        orderBy: { createdAt: "desc" },
+        take: 200
+      }),
+      prisma.worldUnlock.findMany({
+        where: { userId },
+        orderBy: { createdAt: "asc" }
+      })
     ]);
 
     const daily = Array.from({ length: 30 }, (_, index) => {
@@ -58,6 +153,36 @@ export class AnalyticsService {
       score: Math.round((byHour.get(hour) ?? 0) / 60)
     }));
     const peakHour = [...bestHours].sort((a, b) => b.score - a.score)[0];
+    const completionRate = allSessionsTotal > 0 ? Math.round((completedSessionsTotal / allSessionsTotal) * 100) : 100;
+    const distractionCounts = new Map<string, number>();
+    for (const log of distractionLogs) {
+      const key = log.reasonCategory.trim() || "Unspecified";
+      distractionCounts.set(key, (distractionCounts.get(key) ?? 0) + 1);
+    }
+    const topDistraction =
+      [...distractionCounts.entries()].sort((a, b) => b[1] - a[1])[0]?.[0] ?? "None yet";
+    const highestIndex = stageIndex(progress?.highestWorldStage ?? "EMPTY_LAND");
+    const lockedIndex = stageIndex(progress?.lockedWorldStage ?? "EMPTY_LAND");
+    const environmentStatus: "active" | "locked" = lockedIndex < highestIndex ? "locked" : "active";
+    const unlockedElements = worldStages
+      .filter((stage) => stageIndex(stage.stage) <= highestIndex)
+      .map((stage) => {
+        const unlock = worldUnlocks.find((item) => item.stage === stage.stage);
+        return {
+          stage: stage.stage,
+          stageName: stageLabels[stage.stage],
+          elementName: worldElementRewards[stage.stage],
+          locked: stageIndex(stage.stage) > lockedIndex,
+          unlockedAt: unlock?.unlockedAt ?? null,
+          lockedAt: unlock?.lockedAt ?? null
+        };
+      });
+    const motivation = buildMotivation({
+      dailyStreak: streak?.dailyStreak ?? 0,
+      lastQualifiedDate: streak?.lastQualifiedDate,
+      timezone: profile?.timezone ?? streak?.timezone ?? "UTC",
+      environmentStatus
+    });
 
     return {
       summary: {
@@ -73,16 +198,39 @@ export class AnalyticsService {
         weeklyStreak: streak?.weeklyStreak ?? 0,
         totalFocusMinutes: Math.round(focusSeconds30 / 60),
         completedSessions: completedSessionsTotal,
+        totalSessions: allSessionsTotal,
+        abandonedSessions: abandonedSessionsTotal,
+        completionRate,
+        topDistraction,
+        environmentStatus,
         completedTasks,
         activeTasks
       },
       daily,
       bestHours,
       taskTrend: { completed: completedTasks, active: activeTasks, archived: archivedTasks },
+      behavioralInsights: {
+        completionRate,
+        topDistraction,
+        totalSessions: allSessionsTotal,
+        completedSessions: completedSessionsTotal,
+        abandonedSessions: abandonedSessionsTotal,
+        environmentStatus,
+        unlockedElements,
+        motivation
+      },
+      motivation,
+      unlockedElements,
       insights: [
         completedSessionsTotal > 0
           ? `${completedSessionsTotal} completed sessions have protected your world so far.`
           : "Start one focused session to generate your first productivity pattern.",
+        allSessionsTotal > 0
+          ? `Your session completion rate is ${completionRate}%.`
+          : "Completion rate appears after your first attempted focus block.",
+        topDistraction !== "None yet"
+          ? `Your most repeated distraction is ${topDistraction}.`
+          : "Log early exits or reflections to reveal your main distraction pattern.",
         peakHour && peakHour.score > 0
           ? `Your strongest focus hour is currently ${peakHour.hour}.`
           : "Complete more sessions to identify your best productivity hour.",

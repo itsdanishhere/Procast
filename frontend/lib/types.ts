@@ -43,13 +43,42 @@ export type SessionDTO = {
   startedAt: string;
   endedAt: string;
   task?: { title: string } | null;
+  distractionReason?: string | null;
 };
 
 export type ReflectionDTO = {
   id: string;
   sessionId: string | null;
+  focusRating: number | null;
   distraction: string;
   wentWell: string;
   improve: string;
+  notes: string | null;
   createdAt: string;
+};
+
+export type MotivationDTO = {
+  messageType: "encouragement" | "warning" | "locked" | "neutral";
+  message: string;
+  missedDays: number | null;
+};
+
+export type UnlockedElementDTO = {
+  stage: string;
+  stageName: string;
+  elementName: string;
+  locked: boolean;
+  unlockedAt: string | null;
+  lockedAt: string | null;
+};
+
+export type BehavioralInsightsDTO = {
+  completionRate: number;
+  topDistraction: string;
+  totalSessions: number;
+  completedSessions: number;
+  abandonedSessions: number;
+  environmentStatus: "active" | "locked";
+  unlockedElements: UnlockedElementDTO[];
+  motivation: MotivationDTO;
 };

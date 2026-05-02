@@ -176,6 +176,7 @@ model User {
   worldUnlocks        WorldUnlock[]
   achievements        UserAchievement[]
   reflections         Reflection[]
+  distractionLogs     DistractionLog[]
   analyticsDaily      AnalyticsDailySnapshot[]
   analyticsWeekly     AnalyticsWeeklySummary[]
   notifications       Notification[]
@@ -331,6 +332,7 @@ model FocusSession {
   task        Task?        @relation(fields: [taskId], references: [id], onDelete: SetNull)
   timerEvents TimerEvent[]
   reflections Reflection[]
+  distractionLogs DistractionLog[]
   xpEntries   XpLedger[]
 
   @@index([userId, status])
@@ -471,9 +473,11 @@ model Reflection {
   id              String   @id @default(cuid())
   userId          String
   focusSessionId  String?
+  focusRating     Int?
   distraction     String
   wentWell        String
   improveTomorrow String
+  reflectionNotes String?
   emotionalTone   String?
   patternTags     String[] @default([])
   createdAt       DateTime @default(now())
@@ -484,6 +488,23 @@ model Reflection {
   focusSession FocusSession? @relation(fields: [focusSessionId], references: [id], onDelete: SetNull)
 
   @@index([userId, createdAt])
+}
+
+model DistractionLog {
+  id             String   @id @default(cuid())
+  userId         String
+  focusSessionId String?
+  reasonCategory String
+  customReason   String?
+  source         String   @default("early_exit")
+  createdAt      DateTime @default(now())
+
+  user         User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  focusSession FocusSession? @relation(fields: [focusSessionId], references: [id], onDelete: SetNull)
+
+  @@index([userId, createdAt])
+  @@index([focusSessionId])
+  @@index([userId, reasonCategory])
 }
 
 model ReflectionPattern {

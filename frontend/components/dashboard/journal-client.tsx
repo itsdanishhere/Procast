@@ -176,85 +176,130 @@ export function JournalClient({ initialReflections }: { initialReflections: Refl
   }
 
   return (
-    <div className="grid gap-6 lg:grid-cols-[0.8fr_1.2fr]">
-      <Card className="h-fit">
-        <div className="mb-6 flex items-center gap-3">
-          <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-cyan/10 text-cyan">
-            <BookOpen className="h-6 w-6" />
-          </div>
-          <div>
-            <p className="text-sm font-extrabold uppercase tracking-[0.2em] text-cyan">Reflection Journal</p>
-            <h2 className="font-display text-2xl font-extrabold">Pattern finder</h2>
-          </div>
-        </div>
-        <form onSubmit={submit} className="space-y-4">
-          <div>
-            <span className="mb-2 block text-sm font-bold text-muted">Focus rating</span>
-            <div className="flex flex-wrap gap-2">
-              {[1, 2, 3, 4, 5].map((rating) => (
-                <button
-                  key={rating}
-                  type="button"
-                  onClick={() => update("focusRating", rating)}
-                  className={cn(
-                    "h-10 w-10 rounded-full border text-sm font-extrabold transition",
-                    form.focusRating === rating
-                      ? "border-cyan bg-cyan text-[#071019]"
-                      : "border-white/10 bg-white/[0.05] text-muted hover:text-foreground"
-                  )}
-                >
-                  {rating}
-                </button>
-              ))}
+    <div className="space-y-6">
+      <Card className="overflow-hidden">
+        <div className="flex flex-col gap-5 border-b border-white/10 pb-6 lg:flex-row lg:items-center lg:justify-between">
+          <div className="flex items-center gap-4">
+            <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-[1.4rem] border border-cyan/20 bg-cyan/10 text-cyan shadow-[inset_0_1px_0_rgba(255,255,255,0.18),0_18px_36px_rgba(37,99,235,0.16)]">
+              <BookOpen className="h-7 w-7" />
+            </div>
+            <div>
+              <p className="text-sm font-extrabold uppercase tracking-[0.24em] text-cyan">Reflection Journal</p>
+              <h2 className="mt-1 font-display text-3xl font-extrabold">Pattern finder</h2>
+              <p className="mt-2 max-w-2xl text-sm font-semibold leading-6 text-muted">
+                Capture what pulled attention away, what worked, and what tomorrow should protect.
+              </p>
             </div>
           </div>
-          <label className="block">
-            <span className="mb-2 block text-sm font-bold text-muted">What distracted you today?</span>
-            <Textarea value={form.distraction} onChange={(event) => update("distraction", event.target.value)} required />
-          </label>
-          <label className="block">
-            <span className="mb-2 block text-sm font-bold text-muted">What went well?</span>
-            <Textarea value={form.wentWell} onChange={(event) => update("wentWell", event.target.value)} required />
-          </label>
-          <label className="block">
-            <span className="mb-2 block text-sm font-bold text-muted">What will improve tomorrow?</span>
-            <Textarea value={form.improve} onChange={(event) => update("improve", event.target.value)} required />
-          </label>
-          <label className="block">
-            <span className="mb-2 block text-sm font-bold text-muted">Optional notes</span>
-            <Textarea value={form.notes} onChange={(event) => update("notes", event.target.value)} />
-          </label>
-          <Button disabled={loading} className="w-full">
-            <Plus className="h-4 w-4" />
-            {loading ? "Saving..." : "Save Reflection"}
-          </Button>
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+            <div className="rounded-2xl border border-white/10 bg-white/[0.045] px-4 py-3">
+              <p className="text-[10px] font-extrabold uppercase tracking-[0.18em] text-muted">Entries</p>
+              <p className="mt-1 font-display text-2xl font-extrabold text-foreground">{reflections.length}</p>
+            </div>
+            <div className="rounded-2xl border border-cyan/15 bg-cyan/10 px-4 py-3">
+              <p className="text-[10px] font-extrabold uppercase tracking-[0.18em] text-cyan">Avg focus</p>
+              <p className="mt-1 font-display text-2xl font-extrabold text-cyan">{pattern.averageFocus || "-"}</p>
+            </div>
+            <div className="rounded-2xl border border-amber/15 bg-amber/10 px-4 py-3">
+              <p className="text-[10px] font-extrabold uppercase tracking-[0.18em] text-amber">Recycle</p>
+              <p className="mt-1 font-display text-2xl font-extrabold text-amber">{deletedReflections.length}</p>
+            </div>
+          </div>
+        </div>
+
+        <form onSubmit={submit} className="pt-6">
+          <div className="grid gap-5 xl:grid-cols-[240px_minmax(0,1fr)]">
+            <div className="rounded-[1.25rem] border border-white/10 bg-white/[0.04] p-4">
+              <span className="mb-3 block text-sm font-bold text-muted">Focus rating</span>
+              <div className="grid grid-cols-5 gap-2 xl:grid-cols-1">
+                {[1, 2, 3, 4, 5].map((rating) => (
+                  <button
+                    key={rating}
+                    type="button"
+                    onClick={() => update("focusRating", rating)}
+                    className={cn(
+                      "flex h-11 items-center justify-center rounded-full border text-sm font-extrabold transition",
+                      form.focusRating === rating
+                        ? "border-cyan bg-cyan text-[#071019] shadow-[0_12px_28px_rgba(37,99,235,0.24)]"
+                        : "border-white/10 bg-white/[0.06] text-muted hover:border-cyan/30 hover:text-foreground"
+                    )}
+                  >
+                    {rating}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="grid gap-4 md:grid-cols-2">
+              <label className="block rounded-[1.25rem] border border-danger/15 bg-danger/[0.055] p-4">
+                <span className="mb-2 block text-sm font-bold text-muted">What distracted you today?</span>
+                <Textarea
+                  className="min-h-24 border-danger/15 bg-[#151722]/65 focus:border-danger focus:ring-danger/15"
+                  value={form.distraction}
+                  onChange={(event) => update("distraction", event.target.value)}
+                  required
+                />
+              </label>
+              <label className="block rounded-[1.25rem] border border-mint/15 bg-mint/[0.055] p-4">
+                <span className="mb-2 block text-sm font-bold text-muted">What went well?</span>
+                <Textarea
+                  className="min-h-24 border-mint/15 bg-[#151722]/65 focus:border-mint focus:ring-mint/15"
+                  value={form.wentWell}
+                  onChange={(event) => update("wentWell", event.target.value)}
+                  required
+                />
+              </label>
+              <label className="block rounded-[1.25rem] border border-cyan/15 bg-cyan/[0.055] p-4">
+                <span className="mb-2 block text-sm font-bold text-muted">What will improve tomorrow?</span>
+                <Textarea
+                  className="min-h-24 border-cyan/15 bg-[#151722]/65"
+                  value={form.improve}
+                  onChange={(event) => update("improve", event.target.value)}
+                  required
+                />
+              </label>
+              <label className="block rounded-[1.25rem] border border-white/10 bg-white/[0.04] p-4">
+                <span className="mb-2 block text-sm font-bold text-muted">Optional notes</span>
+                <Textarea className="min-h-24 bg-[#151722]/65" value={form.notes} onChange={(event) => update("notes", event.target.value)} />
+              </label>
+            </div>
+          </div>
+
+          <div className="mt-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <p className="text-sm font-semibold text-muted">Reflections feed the pattern map and future focus insights.</p>
+            <Button disabled={loading} className="w-full sm:w-auto sm:min-w-56">
+              <Plus className="h-4 w-4" />
+              {loading ? "Saving..." : "Save Reflection"}
+            </Button>
+          </div>
         </form>
       </Card>
 
-      <div className="space-y-4">
-        <Card>
-          <div className="mb-5 flex items-center justify-between gap-3">
+      <div className="grid gap-6 xl:grid-cols-[minmax(0,1.15fr)_minmax(360px,0.85fr)]">
+        <Card className="min-h-[320px]">
+          <div className="mb-6 flex items-center justify-between gap-4">
             <div>
-              <p className="text-sm font-extrabold uppercase tracking-[0.2em] text-cyan">Pattern map</p>
-              <h3 className="mt-1 font-display text-2xl font-extrabold">What your reflections are repeating.</h3>
+              <p className="text-sm font-extrabold uppercase tracking-[0.22em] text-cyan">Pattern map</p>
+              <h3 className="mt-2 font-display text-2xl font-extrabold">What your reflections are repeating.</h3>
             </div>
-            <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-full border border-cyan/25 bg-cyan/10 font-display text-2xl font-extrabold text-cyan shadow-[inset_0_1px_0_rgba(255,255,255,0.18),0_16px_34px_rgba(37,99,235,0.16)]">
-              {pattern.averageFocus || "-"}
+            <div className="flex h-16 w-16 shrink-0 flex-col items-center justify-center rounded-full border border-cyan/25 bg-cyan/10 text-cyan shadow-[inset_0_1px_0_rgba(255,255,255,0.18),0_16px_34px_rgba(37,99,235,0.16)]">
+              <span className="font-display text-2xl font-extrabold">{pattern.averageFocus || "-"}</span>
+              <span className="text-[9px] font-extrabold uppercase tracking-[0.12em]">focus</span>
             </div>
           </div>
           {reflections.length === 0 ? (
-            <p className="rounded-2xl border border-white/10 bg-white/[0.04] p-4 text-sm text-muted">
+            <p className="rounded-2xl border border-white/10 bg-white/[0.04] p-5 text-sm text-muted">
               Save a few reflections to reveal distraction loops, focus wins, and tomorrow-improvement patterns.
             </p>
           ) : (
-            <div className="grid gap-4 lg:grid-cols-[1.1fr_0.9fr]">
-              <div className="space-y-3">
-                <p className="text-xs font-extrabold uppercase tracking-[0.16em] text-danger">Distraction frequency</p>
+            <div className="grid gap-5 lg:grid-cols-[1.1fr_0.9fr]">
+              <div className="space-y-3 rounded-[1.35rem] border border-danger/10 bg-danger/[0.045] p-4">
+                <p className="text-xs font-extrabold uppercase tracking-[0.18em] text-danger">Distraction frequency</p>
                 {pattern.distractions.length === 0 ? (
                   <p className="text-sm text-muted">No repeated distraction words yet.</p>
                 ) : (
                   pattern.distractions.map((item) => (
-                    <div key={item.label} className="rounded-2xl border border-danger/15 bg-danger/10 p-3">
+                    <div key={item.label} className="rounded-2xl border border-danger/15 bg-[#181923]/80 p-3">
                       <div className="mb-2 flex items-center justify-between text-xs font-bold">
                         <span className="capitalize text-foreground">{item.label}</span>
                         <span className="text-danger">{item.count}x</span>
@@ -269,8 +314,8 @@ export function JournalClient({ initialReflections }: { initialReflections: Refl
                   ))
                 )}
               </div>
-              <div className="space-y-4">
-                <div>
+              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-1">
+                <div className="rounded-[1.35rem] border border-mint/15 bg-mint/[0.055] p-4">
                   <p className="mb-3 text-xs font-extrabold uppercase tracking-[0.16em] text-mint">What works</p>
                   <div className="flex flex-wrap gap-2">
                     {pattern.wins.length ? (
@@ -284,7 +329,7 @@ export function JournalClient({ initialReflections }: { initialReflections: Refl
                     )}
                   </div>
                 </div>
-                <div>
+                <div className="rounded-[1.35rem] border border-cyan/15 bg-cyan/[0.055] p-4">
                   <p className="mb-3 text-xs font-extrabold uppercase tracking-[0.16em] text-cyan">Improve next</p>
                   <div className="flex flex-wrap gap-2">
                     {pattern.improvements.length ? (
@@ -298,7 +343,7 @@ export function JournalClient({ initialReflections }: { initialReflections: Refl
                     )}
                   </div>
                 </div>
-                <div>
+                <div className="rounded-[1.35rem] border border-amber/15 bg-amber/[0.055] p-4 sm:col-span-2 lg:col-span-1">
                   <p className="mb-3 text-xs font-extrabold uppercase tracking-[0.16em] text-amber">Notes signal</p>
                   <div className="grid grid-cols-5 items-end gap-2">
                     {(pattern.notes.length ? pattern.notes : [{ label: "none", count: 0 }]).map((item) => (
@@ -317,16 +362,19 @@ export function JournalClient({ initialReflections }: { initialReflections: Refl
           )}
         </Card>
 
-        <Card>
-          <div className="mb-4 flex items-center justify-between gap-3">
+        <Card className="min-h-[320px]">
+          <div className="mb-5 flex items-center justify-between gap-3">
             <div>
               <p className="text-sm font-extrabold uppercase tracking-[0.18em] text-amber">Recycle bin</p>
-              <p className="mt-1 text-sm text-muted">Deleted reflections can be restored for 3 days.</p>
+              <h3 className="mt-2 font-display text-xl font-extrabold">Recover deleted reflections.</h3>
+              <p className="mt-2 text-sm text-muted">Deleted reflections can be restored for 3 days.</p>
             </div>
-            <ArchiveRestore className="h-5 w-5 text-amber" />
+            <div className="flex h-12 w-12 items-center justify-center rounded-full border border-amber/20 bg-amber/10 text-amber">
+              <ArchiveRestore className="h-5 w-5" />
+            </div>
           </div>
           {deletedReflections.length === 0 ? (
-            <p className="rounded-2xl border border-white/10 bg-white/[0.04] p-4 text-sm text-muted">Recycle bin is empty.</p>
+            <p className="rounded-2xl border border-white/10 bg-white/[0.04] p-5 text-sm text-muted">Recycle bin is empty.</p>
           ) : (
             <div className="space-y-3">
               {deletedReflections.map((reflection) => (
@@ -355,53 +403,65 @@ export function JournalClient({ initialReflections }: { initialReflections: Refl
             </div>
           )}
         </Card>
+      </div>
+
+      <section className="space-y-4">
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+          <div>
+            <p className="text-sm font-extrabold uppercase tracking-[0.22em] text-cyan">Reflection history</p>
+            <h3 className="mt-1 font-display text-2xl font-extrabold">Saved journal entries</h3>
+          </div>
+          <p className="text-sm font-semibold text-muted">{reflections.length} active entr{reflections.length === 1 ? "y" : "ies"}</p>
+        </div>
 
         {reflections.length === 0 ? (
           <Card className="p-8 text-center text-muted">No reflections yet. Complete a session or add one manually.</Card>
         ) : (
-          reflections.map((reflection) => (
-            <Card key={reflection.id}>
-              <div className="mb-4 flex items-center justify-between">
-                <p className="text-sm font-extrabold uppercase tracking-[0.18em] text-cyan">
-                  {new Date(reflection.createdAt).toLocaleDateString()}
-                </p>
-                <div className="flex items-center gap-2">
-                  {reflection.focusRating ? <span className="text-xs font-bold text-amber">{reflection.focusRating}/5 focus</span> : null}
-                  {reflection.sessionId ? <span className="text-xs font-bold text-mint">Session-linked</span> : null}
-                  <button
-                    className={cn(clayIconButton, "border-danger/25 bg-danger/10 text-danger hover:bg-danger/18 hover:text-danger")}
-                    type="button"
-                    onClick={() => void moveToRecycleBin(reflection)}
-                    aria-label="Delete reflection"
-                  >
-                    <Trash2 className="h-5 w-5" />
-                  </button>
+          <div className="grid gap-4">
+            {reflections.map((reflection) => (
+              <Card key={reflection.id} className="overflow-hidden">
+                <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                  <p className="text-sm font-extrabold uppercase tracking-[0.18em] text-cyan">
+                    {new Date(reflection.createdAt).toLocaleDateString()}
+                  </p>
+                  <div className="flex flex-wrap items-center gap-2">
+                    {reflection.focusRating ? <span className="rounded-full border border-amber/20 bg-amber/10 px-3 py-1 text-xs font-bold text-amber">{reflection.focusRating}/5 focus</span> : null}
+                    {reflection.sessionId ? <span className="rounded-full border border-mint/20 bg-mint/10 px-3 py-1 text-xs font-bold text-mint">Session-linked</span> : null}
+                    <button
+                      className={cn(clayIconButton, "border-danger/25 bg-danger/10 text-danger hover:bg-danger/18 hover:text-danger")}
+                      type="button"
+                      onClick={() => void moveToRecycleBin(reflection)}
+                      aria-label="Delete reflection"
+                    >
+                      <Trash2 className="h-5 w-5" />
+                    </button>
+                  </div>
                 </div>
-              </div>
-              <div className="grid gap-3 md:grid-cols-3">
-                <div className="rounded-2xl border border-danger/20 bg-danger/10 p-4">
-                  <p className="text-xs font-extrabold uppercase tracking-[0.14em] text-danger">Distraction</p>
-                  <p className="mt-2 text-sm leading-6 text-muted">{reflection.distraction}</p>
+                <div className="grid gap-3 md:grid-cols-3">
+                  <div className="rounded-2xl border border-danger/20 bg-danger/10 p-4">
+                    <p className="text-xs font-extrabold uppercase tracking-[0.14em] text-danger">Distraction</p>
+                    <p className="mt-2 text-sm leading-6 text-muted">{reflection.distraction}</p>
+                  </div>
+                  <div className="rounded-2xl border border-mint/20 bg-mint/10 p-4">
+                    <p className="text-xs font-extrabold uppercase tracking-[0.14em] text-mint">Went well</p>
+                    <p className="mt-2 text-sm leading-6 text-muted">{reflection.wentWell}</p>
+                  </div>
+                  <div className="rounded-2xl border border-cyan/20 bg-cyan/10 p-4">
+                    <p className="text-xs font-extrabold uppercase tracking-[0.14em] text-cyan">Improve</p>
+                    <p className="mt-2 text-sm leading-6 text-muted">{reflection.improve}</p>
+                  </div>
                 </div>
-                <div className="rounded-2xl border border-mint/20 bg-mint/10 p-4">
-                  <p className="text-xs font-extrabold uppercase tracking-[0.14em] text-mint">Went well</p>
-                  <p className="mt-2 text-sm leading-6 text-muted">{reflection.wentWell}</p>
-                </div>
-                <div className="rounded-2xl border border-cyan/20 bg-cyan/10 p-4">
-                  <p className="text-xs font-extrabold uppercase tracking-[0.14em] text-cyan">Improve</p>
-                  <p className="mt-2 text-sm leading-6 text-muted">{reflection.improve}</p>
-                </div>
-              </div>
-              {reflection.notes ? (
-                <div className="mt-3 rounded-2xl border border-white/10 bg-white/[0.04] p-4">
-                  <p className="text-xs font-extrabold uppercase tracking-[0.14em] text-muted">Notes</p>
-                  <p className="mt-2 text-sm leading-6 text-muted">{reflection.notes}</p>
-                </div>
-              ) : null}
-            </Card>
-          ))
+                {reflection.notes ? (
+                  <div className="mt-3 rounded-2xl border border-white/10 bg-white/[0.04] p-4">
+                    <p className="text-xs font-extrabold uppercase tracking-[0.14em] text-muted">Notes</p>
+                    <p className="mt-2 text-sm leading-6 text-muted">{reflection.notes}</p>
+                  </div>
+                ) : null}
+              </Card>
+            ))}
+          </div>
         )}
-      </div>
+      </section>
     </div>
   );
 }

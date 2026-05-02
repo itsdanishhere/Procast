@@ -1,4 +1,5 @@
 import type { ProgressDTO } from "@/lib/types";
+import { worldStages } from "@/lib/constants";
 
 type BackendProgress = Partial<ProgressDTO> & {
   currentWorldStage?: string | null;
@@ -13,18 +14,7 @@ type BackendStreak = {
   lastQualifiedDate?: string | null;
 };
 
-const stageLevels: Record<string, number> = {
-  EMPTY_LAND: 1,
-  SMALL_HOUSE: 2,
-  BETTER_HOUSE: 3,
-  GARDEN: 4,
-  STREET: 5,
-  TOWN: 6,
-  VILLAGE: 7,
-  LARGE_TOWN: 8,
-  CITY: 9,
-  KINGDOM: 10
-};
+const stageLevels = Object.fromEntries(worldStages.map((stage) => [stage.code, stage.level])) as Record<string, number>;
 
 const defaultProgress: ProgressDTO = {
   totalXp: 0,
@@ -44,16 +34,21 @@ function stageLevel(stage: unknown, fallback: number) {
   return stageLevels[stage] ?? fallback;
 }
 
+function levelForXp(xp: number) {
+  return [...worldStages].reverse().find((stage) => xp >= stage.threshold)?.level ?? 1;
+}
+
 export function normalizeProgress(
   progress?: BackendProgress | null,
   streak?: BackendStreak | null,
   fallback: ProgressDTO = defaultProgress
 ): ProgressDTO {
   const totalXp = progress?.totalXp ?? fallback.totalXp;
-  const currentLevel = progress?.currentLevel ?? stageLevel(progress?.currentWorldStage, fallback.currentLevel);
-  const unlockedStage =
+  const currentLevel = levelForXp(totalXp);
+  const rawUnlockedStage =
     progress?.unlockedStage ?? stageLevel(progress?.highestWorldStage, Math.max(fallback.unlockedStage, currentLevel));
-  const lockedStage = progress?.lockedStage ?? stageLevel(progress?.lockedWorldStage, fallback.lockedStage);
+  const unlockedStage = Math.min(rawUnlockedStage, currentLevel);
+  const lockedStage = Math.min(progress?.lockedStage ?? stageLevel(progress?.lockedWorldStage, fallback.lockedStage), unlockedStage);
 
   return {
     totalXp,

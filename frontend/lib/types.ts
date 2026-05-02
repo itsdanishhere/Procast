@@ -68,6 +68,7 @@ export type UnlockedElementDTO = {
   stage: string;
   stageName: string;
   elementName: string;
+  milestonePercent?: number;
   locked: boolean;
   unlockedAt: string | null;
   lockedAt: string | null;

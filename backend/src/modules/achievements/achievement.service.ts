@@ -1,6 +1,7 @@
 import { prisma } from "../../shared/prisma/client";
 import type { DbClient } from "../../shared/prisma/types";
 import { notificationService } from "../notifications/notification.service";
+import { stageIndex } from "../world-progression/world.constants";
 import { xpService } from "../xp-engine/xp.service";
 import { achievementDefinitions } from "./achievement.definitions";
 
@@ -37,7 +38,7 @@ export class AchievementService {
     if (completedSessions >= 1) eligible.add("first_session");
     if ((streak?.dailyStreak ?? 0) >= 7) eligible.add("seven_day_streak");
     if (deepSessions >= 1) eligible.add("deep_focus_master");
-    if (["TOWN", "VILLAGE", "LARGE_TOWN", "CITY", "KINGDOM"].includes(progress?.currentWorldStage ?? "")) eligible.add("town_builder");
+    if (stageIndex(progress?.currentWorldStage ?? "") >= stageIndex("TOWN")) eligible.add("town_builder");
     if ((streak?.weeklyStreak ?? 0) >= 1 && completedSessions >= 7) eligible.add("no_skip_week");
     if (completedSessions >= 100) eligible.add("hundred_sessions");
 

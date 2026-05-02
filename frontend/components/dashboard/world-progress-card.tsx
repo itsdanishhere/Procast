@@ -6,7 +6,7 @@ import { Lock, Map, ShieldCheck } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
-import { getNextStage, getStage, getStageProgressPercent, getXpToNextLevel } from "@/lib/progression";
+import { getLevelForXp, getNextStage, getStage, getStageProgressPercent, getXpToNextLevel } from "@/lib/progression";
 import { worldStages } from "@/lib/constants";
 import type { ProgressDTO, UnlockedElementDTO } from "@/lib/types";
 import { cn } from "@/lib/cn";
@@ -18,10 +18,13 @@ export function WorldProgressCard({
   progress: ProgressDTO;
   unlockedElements?: UnlockedElementDTO[];
 }) {
-  const current = getStage(progress.currentLevel);
+  const currentLevel = getLevelForXp(progress.totalXp);
+  const current = getStage(currentLevel);
   const next = getNextStage(progress.totalXp);
   const percent = getStageProgressPercent(progress.totalXp);
   const lockedBack = progress.lockedStage < progress.unlockedStage;
+  const previewPage = Math.floor((Math.max(1, Math.min(currentLevel, worldStages.length)) - 1) / 10);
+  const previewStages = worldStages.slice(previewPage * 10, previewPage * 10 + 10);
 
   return (
     <Card className="overflow-hidden p-0">
@@ -42,10 +45,10 @@ export function WorldProgressCard({
 
       <div className="world-grid p-5">
         <div className="grid grid-cols-5 gap-2">
-          {worldStages.map((stage) => {
+          {previewStages.map((stage) => {
             const unlocked = stage.level <= progress.unlockedStage;
             const protectedStage = stage.level <= progress.lockedStage;
-            const currentStage = stage.level === progress.currentLevel;
+            const currentStage = stage.level === currentLevel;
             return (
               <div
                 key={stage.level}
@@ -68,7 +71,7 @@ export function WorldProgressCard({
 
       <div className="p-6">
         <div className="mb-2 flex items-center justify-between text-sm font-bold">
-          <span className="text-muted">Level {progress.currentLevel}</span>
+          <span className="text-muted">Level {currentLevel}</span>
           <span className="text-cyan">{getXpToNextLevel(progress.totalXp)} XP to next</span>
         </div>
         <Progress value={percent} />
@@ -83,6 +86,7 @@ export function WorldProgressCard({
                 )}
               >
                 {element.elementName}
+                {element.milestonePercent ? ` ${element.milestonePercent}%` : ""}
               </span>
             ))}
           </div>

@@ -2,38 +2,24 @@ import { endOfDay, startOfDay, subDays } from "date-fns";
 
 import { prisma } from "../../shared/prisma/client";
 import { localDateKey } from "../streak-engine/streak.service";
-import { stageIndex, worldStages } from "../world-progression/world.constants";
+import { stageForXp, stageIndex, worldStages, worldSubstageMarks } from "../world-progression/world.constants";
 
 const dayMs = 24 * 60 * 60 * 1000;
 
-const stageLabels: Record<string, string> = {
-  EMPTY_LAND: "Empty Land",
-  SMALL_HOUSE: "Small House",
-  BETTER_HOUSE: "Better House",
-  GARDEN: "Garden",
-  STREET: "Street",
-  TOWN: "Town",
-  VILLAGE: "Village",
-  LARGE_TOWN: "Large Town",
-  CITY: "City",
-  KINGDOM: "Kingdom"
-};
-
-const worldElementRewards: Record<string, string> = {
-  EMPTY_LAND: "Foundation Plot",
-  SMALL_HOUSE: "First Shelter",
-  BETTER_HOUSE: "Reinforced House",
-  GARDEN: "Discipline Garden",
-  STREET: "Focus Path",
-  TOWN: "Town Center",
-  VILLAGE: "Habit Village",
-  LARGE_TOWN: "Momentum District",
-  CITY: "Focus City",
-  KINGDOM: "Discipline Kingdom"
-};
-
 function daysBetween(previousKey: string, nextKey: string) {
   return Math.round((Date.parse(`${nextKey}T00:00:00.000Z`) - Date.parse(`${previousKey}T00:00:00.000Z`)) / dayMs);
+}
+
+function unlockedWorldElementCount(totalXp: number, stageIndexValue: number) {
+  const stage = worldStages[stageIndexValue];
+  if (!stage || totalXp < stage.threshold) return 0;
+
+  const nextThreshold = worldStages[stageIndexValue + 1]?.threshold ?? stage.threshold;
+  if (totalXp >= nextThreshold) return worldSubstageMarks.length;
+
+  const span = Math.max(1, nextThreshold - stage.threshold);
+  const ratio = Math.max(0, Math.min(1, (totalXp - stage.threshold) / span));
+  return Math.max(0, Math.min(worldSubstageMarks.length, Math.floor(ratio * worldSubstageMarks.length + 1e-9)));
 }
 
 function buildMotivation(input: {
@@ -163,21 +149,26 @@ export class AnalyticsService {
     }
     const topDistraction =
       [...distractionCounts.entries()].sort((a, b) => b[1] - a[1])[0]?.[0] ?? "None yet";
-    const highestIndex = stageIndex(progress?.highestWorldStage ?? "EMPTY_LAND");
+    const totalXp = progress?.totalXp ?? 0;
+    const currentStage = stageForXp(totalXp);
+    const highestIndex = Math.max(stageIndex(progress?.highestWorldStage ?? "EMPTY_LAND"), stageIndex(currentStage.stage));
     const lockedIndex = stageIndex(progress?.lockedWorldStage ?? "EMPTY_LAND");
     const environmentStatus: "active" | "locked" = lockedIndex < highestIndex ? "locked" : "active";
     const unlockedElements = worldStages
       .filter((stage) => stageIndex(stage.stage) <= highestIndex)
-      .map((stage) => {
+      .flatMap((stage) => {
+        const currentStageIndex = stageIndex(stage.stage);
         const unlock = worldUnlocks.find((item) => item.stage === stage.stage);
-        return {
+        const elementCount = unlockedWorldElementCount(totalXp, currentStageIndex);
+        return stage.subElements.slice(0, elementCount).map((elementName, elementIndex) => ({
           stage: stage.stage,
-          stageName: stageLabels[stage.stage],
-          elementName: worldElementRewards[stage.stage],
-          locked: stageIndex(stage.stage) > lockedIndex,
+          stageName: stage.label,
+          elementName,
+          milestonePercent: worldSubstageMarks[elementIndex],
+          locked: currentStageIndex > lockedIndex,
           unlockedAt: unlock?.unlockedAt ?? null,
           lockedAt: unlock?.lockedAt ?? null
-        };
+        }));
       });
     const motivation = buildMotivation({
       dailyStreak: streak?.dailyStreak ?? 0,
@@ -190,8 +181,8 @@ export class AnalyticsService {
       summary: {
         totalXp: progress?.totalXp ?? 0,
         xp: progress?.totalXp ?? 0,
-        currentLevel: progress?.currentLevel ?? 1,
-        currentWorldStage: progress?.currentWorldStage ?? "EMPTY_LAND",
+        currentLevel: currentStage.level,
+        currentWorldStage: currentStage.stage,
         highestWorldStage: progress?.highestWorldStage ?? "EMPTY_LAND",
         lockedWorldStage: progress?.lockedWorldStage ?? "EMPTY_LAND",
         dailyStreak: streak?.dailyStreak ?? 0,

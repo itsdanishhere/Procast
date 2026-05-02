@@ -1,33 +1,49 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { ArrowRight, CheckCircle2, Circle, Lock, ShieldCheck, Sparkles } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import { CheckCircle2, ChevronLeft, ChevronRight, Circle, Lock, ShieldCheck, Sparkles } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
-import { getNextStage, getStageProgressPercent, getXpToNextLevel } from "@/lib/progression";
+import { getLevelForXp, getNextStage, getStageProgressPercent, getXpToNextLevel } from "@/lib/progression";
 import { worldStages } from "@/lib/constants";
 import type { BehavioralInsightsDTO, ProgressDTO } from "@/lib/types";
 import { cn } from "@/lib/cn";
 import { defaultBehavioralInsights, fetchBehavioralInsights, fetchCurrentUserProgress } from "@/lib/live-data";
 import { appDataRefreshEvent } from "@/lib/timer-events";
 
+const substageProgressMarks = [25, 50, 75, 100] as const;
+const stagesPerPage = 10;
+
 export function ProgressMapPage({ progress }: { progress: ProgressDTO }) {
   const [currentProgress, setCurrentProgress] = useState(progress);
   const [behavior, setBehavior] = useState<BehavioralInsightsDTO>(defaultBehavioralInsights);
   const totalXp = currentProgress.totalXp ?? 0;
-  const currentLevel = currentProgress.currentLevel ?? 1;
+  const currentLevel = getLevelForXp(totalXp);
   const next = getNextStage(totalXp);
   const percent = getStageProgressPercent(totalXp);
+  const stagePages = useMemo(
+    () =>
+      Array.from({ length: Math.ceil(worldStages.length / stagesPerPage) }, (_, pageIndex) =>
+        worldStages.slice(pageIndex * stagesPerPage, pageIndex * stagesPerPage + stagesPerPage)
+      ),
+    []
+  );
+  const [currentPage, setCurrentPage] = useState(() => Math.floor((Math.max(1, Math.min(currentLevel, worldStages.length)) - 1) / stagesPerPage));
+  const visibleLevelStart = currentPage * stagesPerPage + 1;
+  const visibleLevelEnd = Math.min(worldStages.length, visibleLevelStart + stagesPerPage - 1);
 
-  function unlockedSubElementCount(level: number, threshold: number, nextThreshold: number, protectedStage: boolean) {
-    if (!protectedStage) return 0;
-    if (currentLevel > level) return 3;
-    if (currentLevel < level) return 0;
+  function stageCompletionRatio(threshold: number, nextThreshold: number) {
+    if (totalXp < threshold) return 0;
+    if (totalXp >= nextThreshold) return 1;
     const span = Math.max(1, nextThreshold - threshold);
-    const stageProgress = Math.max(0, Math.min(1, (totalXp - threshold) / span));
-    return Math.max(1, Math.min(3, Math.ceil(stageProgress * 3)));
+    return Math.max(0, Math.min(1, (totalXp - threshold) / span));
+  }
+
+  function unlockedSubElementCount(threshold: number, nextThreshold: number, protectedStage: boolean) {
+    if (!protectedStage) return 0;
+    return Math.max(0, Math.min(substageProgressMarks.length, Math.floor(stageCompletionRatio(threshold, nextThreshold) * substageProgressMarks.length + 1e-9)));
   }
 
   useEffect(() => {
@@ -68,82 +84,154 @@ export function ProgressMapPage({ progress }: { progress: ProgressDTO }) {
                 Completed focus sessions unlock new stages. Break discipline long enough and earlier unlocks can lock again.
               </p>
             </div>
-            <Badge className="border-cyan/25 bg-cyan/10 text-cyan">
-              <Sparkles className="h-3.5 w-3.5" />
-              {getXpToNextLevel(totalXp)} XP to {next.name}
-            </Badge>
+            <div className="flex flex-wrap gap-2">
+              <Badge className="border-white/15 bg-white/[0.06] text-muted">
+                Levels {visibleLevelStart}-{visibleLevelEnd} of {worldStages.length}
+              </Badge>
+              <Badge className="border-cyan/25 bg-cyan/10 text-cyan">
+                <Sparkles className="h-3.5 w-3.5" />
+                {getXpToNextLevel(totalXp)} XP to {next.name}
+              </Badge>
+            </div>
           </div>
         </div>
 
-        <div className="world-grid p-6">
-          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
-            {worldStages.map((stage, index) => {
-              const unlocked = stage.level <= currentProgress.unlockedStage;
-              const protectedStage = stage.level <= currentProgress.lockedStage;
-              const current = stage.level === currentLevel;
-              const nextThreshold = worldStages[index + 1]?.threshold ?? stage.threshold + 600;
-              const elementUnlockCount = unlockedSubElementCount(stage.level, stage.threshold, nextThreshold, protectedStage);
-              return (
-                <div key={stage.level} className="relative">
-                  {index < worldStages.length - 1 ? (
-                    <ArrowRight className="absolute -right-3 top-1/2 z-10 hidden h-5 w-5 -translate-y-1/2 text-white/20 xl:block" />
-                  ) : null}
-                  <div
-                    className={cn(
-                      "min-h-56 rounded-[24px] border p-5 transition duration-300",
-                      unlocked && protectedStage && "border-mint/30 bg-mint/10",
-                      unlocked && !protectedStage && "border-danger/30 bg-danger/10",
-                      !unlocked && "border-white/10 bg-white/[0.04]",
-                      current && "scale-[1.02] border-cyan/50 bg-cyan/12 shadow-[0_0_36px_rgba(99,179,237,0.18)]"
-                    )}
-                  >
-                    <div className="flex items-start justify-between">
-                      <div>
-                        <p className="text-xs font-extrabold uppercase tracking-[0.2em] text-muted">Level {stage.level}</p>
-                        <h3 className="mt-2 font-display text-2xl font-extrabold">{stage.name}</h3>
-                      </div>
-                      {unlocked ? (
-                        protectedStage ? (
-                          <ShieldCheck className="h-6 w-6 text-mint" />
-                        ) : (
-                          <Lock className="h-6 w-6 text-danger" />
-                        )
-                      ) : (
-                        <Lock className="h-6 w-6 text-white/20" />
-                      )}
-                    </div>
-                    <div className="my-7 flex h-24 items-center justify-center rounded-2xl border border-white/10 bg-black/20 font-display text-5xl font-extrabold">
-                      {stage.symbol}
-                    </div>
-                    <p className="text-sm leading-6 text-muted">{stage.description}</p>
-                    <div className="mt-4 space-y-2 rounded-xl border border-white/10 bg-black/20 p-3">
-                      <p className="text-[11px] font-extrabold uppercase tracking-[0.14em] text-muted">
-                        Level elements {elementUnlockCount}/3
-                      </p>
-                      {stage.subElements.map((element, elementIndex) => {
-                        const isElementUnlocked = elementIndex < elementUnlockCount;
-                        return (
-                          <div key={`${stage.level}-${element}`} className="flex items-center gap-2 text-xs">
-                            {isElementUnlocked ? (
-                              <CheckCircle2 className="h-3.5 w-3.5 text-mint" />
-                            ) : (
-                              <Circle className="h-3.5 w-3.5 text-white/35" />
-                            )}
-                            <span className={isElementUnlocked ? "text-foreground" : "text-muted"}>{element}</span>
+        <div className="world-grid relative overflow-hidden">
+          <button
+            type="button"
+            disabled={currentPage === 0}
+            onClick={() => setCurrentPage((page) => Math.max(0, page - 1))}
+            className={cn(
+              "absolute left-4 top-1/2 z-20 flex h-14 w-14 -translate-y-1/2 items-center justify-center rounded-full border border-white/15 bg-[#101624]/85 text-foreground shadow-[inset_0_1px_0_rgba(255,255,255,0.2),0_18px_40px_rgba(0,0,0,0.34)] backdrop-blur transition hover:border-cyan/40 hover:bg-cyan/15",
+              currentPage === 0 && "pointer-events-none opacity-25"
+            )}
+            aria-label="Previous progress page"
+          >
+            <ChevronLeft className="h-7 w-7" />
+          </button>
+          <button
+            type="button"
+            disabled={currentPage === stagePages.length - 1}
+            onClick={() => setCurrentPage((page) => Math.min(stagePages.length - 1, page + 1))}
+            className={cn(
+              "absolute right-4 top-1/2 z-20 flex h-14 w-14 -translate-y-1/2 items-center justify-center rounded-full border border-white/15 bg-[#101624]/85 text-foreground shadow-[inset_0_1px_0_rgba(255,255,255,0.2),0_18px_40px_rgba(0,0,0,0.34)] backdrop-blur transition hover:border-cyan/40 hover:bg-cyan/15",
+              currentPage === stagePages.length - 1 && "pointer-events-none opacity-25"
+            )}
+            aria-label="Next progress page"
+          >
+            <ChevronRight className="h-7 w-7" />
+          </button>
+
+          <div className="flex transition-transform duration-500 ease-out" style={{ transform: `translateX(-${currentPage * 100}%)` }}>
+            {stagePages.map((pageStages, pageIndex) => (
+              <div key={`stage-page-${pageIndex}`} className="w-full shrink-0 p-6">
+                <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
+                  {pageStages.map((stage, index) => {
+                    const globalIndex = pageIndex * stagesPerPage + index;
+                    const unlocked = stage.level <= currentProgress.unlockedStage;
+                    const protectedStage = stage.level <= currentProgress.lockedStage;
+                    const current = stage.level === currentLevel;
+                    const nextThreshold = worldStages[globalIndex + 1]?.threshold ?? stage.threshold;
+                    const elementUnlockCount = unlockedSubElementCount(stage.threshold, nextThreshold, protectedStage);
+                    const stageCompletion = Math.round(stageCompletionRatio(stage.threshold, nextThreshold) * 100);
+                    const stageCost = globalIndex === 0 ? 0 : stage.threshold - worldStages[globalIndex - 1].threshold;
+                    const xpLeftToCompleteStage =
+                      current && nextThreshold > stage.threshold ? Math.max(0, nextThreshold - totalXp) : stage.level < currentLevel ? 0 : null;
+                    return (
+                      <div
+                        key={stage.level}
+                        className={cn(
+                          "min-h-[26rem] rounded-[24px] border p-5 transition duration-300",
+                          unlocked && protectedStage && "border-mint/30 bg-mint/10",
+                          unlocked && !protectedStage && "border-danger/30 bg-danger/10",
+                          !unlocked && "border-white/10 bg-white/[0.04]",
+                          current && "scale-[1.02] border-cyan/50 bg-cyan/12 shadow-[0_0_36px_rgba(99,179,237,0.18)]"
+                        )}
+                      >
+                        <div className="flex items-start justify-between">
+                          <div>
+                            <p className="text-xs font-extrabold uppercase tracking-[0.2em] text-muted">Level {stage.level}</p>
+                            <h3 className="mt-2 font-display text-2xl font-extrabold">{stage.name}</h3>
                           </div>
-                        );
-                      })}
-                    </div>
-                    <div className="mt-4 flex items-center justify-between gap-3 text-xs font-bold">
-                      <span className="text-cyan">{stage.threshold} XP required</span>
-                      <span className={unlocked ? "text-mint" : "text-amber"}>
-                        {Math.max(0, stage.threshold - totalXp)} XP left
-                      </span>
-                    </div>
-                  </div>
+                          {unlocked ? (
+                            protectedStage ? (
+                              <ShieldCheck className="h-6 w-6 text-mint" />
+                            ) : (
+                              <Lock className="h-6 w-6 text-danger" />
+                            )
+                          ) : (
+                            <Lock className="h-6 w-6 text-white/20" />
+                          )}
+                        </div>
+                        <div className="my-7 flex h-24 items-center justify-center rounded-2xl border border-white/10 bg-black/20 font-display text-5xl font-extrabold">
+                          {stage.symbol}
+                        </div>
+                        <p className="text-sm leading-6 text-muted">{stage.description}</p>
+                        <div className="mt-4 space-y-2 rounded-xl border border-white/10 bg-black/20 p-3">
+                          <p className="text-[11px] font-extrabold uppercase tracking-[0.14em] text-muted">
+                            Level elements {elementUnlockCount}/{substageProgressMarks.length}
+                          </p>
+                          <div className="h-1.5 overflow-hidden rounded-full bg-white/10">
+                            <div
+                              className="h-full rounded-full bg-gradient-to-r from-cyan to-mint transition-all duration-500"
+                              style={{ width: `${protectedStage ? stageCompletion : 0}%` }}
+                            />
+                          </div>
+                          {stage.subElements.map((element, elementIndex) => {
+                            const isElementUnlocked = elementIndex < elementUnlockCount;
+                            return (
+                              <div key={`${stage.level}-${element}`} className="flex items-center justify-between gap-3 text-xs">
+                                <div className="flex min-w-0 items-center gap-2">
+                                  {isElementUnlocked ? (
+                                    <CheckCircle2 className="h-3.5 w-3.5 shrink-0 text-mint" />
+                                  ) : (
+                                    <Circle className="h-3.5 w-3.5 shrink-0 text-white/35" />
+                                  )}
+                                  <span className={cn("truncate", isElementUnlocked ? "text-foreground" : "text-muted")}>{element}</span>
+                                </div>
+                                <span
+                                  className={cn(
+                                    "shrink-0 rounded-full px-2 py-0.5 text-[10px] font-extrabold",
+                                    isElementUnlocked ? "bg-mint/10 text-mint" : "bg-white/[0.05] text-white/35"
+                                  )}
+                                >
+                                  {substageProgressMarks[elementIndex]}%
+                                </span>
+                              </div>
+                            );
+                          })}
+                        </div>
+                        <div className="mt-4 flex items-center justify-between gap-3 text-xs font-bold">
+                          <span className="text-cyan">{stageCost} XP required</span>
+                          {xpLeftToCompleteStage === null ? (
+                            <span className="text-white/35">Locked</span>
+                          ) : (
+                            <span className={xpLeftToCompleteStage === 0 ? "text-mint" : "text-amber"}>
+                              {xpLeftToCompleteStage} XP left
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
                 </div>
-              );
-            })}
+              </div>
+            ))}
+          </div>
+
+          <div className="flex items-center justify-center gap-2 pb-5">
+            {stagePages.map((_, pageIndex) => (
+              <button
+                key={`stage-dot-${pageIndex}`}
+                type="button"
+                onClick={() => setCurrentPage(pageIndex)}
+                className={cn(
+                  "h-2.5 rounded-full transition",
+                  pageIndex === currentPage ? "w-8 bg-cyan shadow-[0_0_18px_rgba(99,179,237,0.45)]" : "w-2.5 bg-white/20 hover:bg-white/40"
+                )}
+                aria-label={`Open progress page ${pageIndex + 1}`}
+              />
+            ))}
           </div>
         </div>
 
@@ -193,9 +281,12 @@ export function ProgressMapPage({ progress }: { progress: ProgressDTO }) {
               >
                 <p className="text-xs font-extrabold uppercase tracking-[0.14em] text-muted">{element.stageName}</p>
                 <p className="mt-2 font-bold">{element.elementName}</p>
-                <p className={cn("mt-2 text-xs font-bold", element.locked ? "text-danger" : "text-mint")}>
-                  {element.locked ? "Locked by pressure" : "Protected"}
-                </p>
+                <div className="mt-2 flex items-center justify-between gap-3 text-xs font-bold">
+                  <span className={element.locked ? "text-danger" : "text-mint"}>
+                    {element.locked ? "Locked by pressure" : "Protected"}
+                  </span>
+                  {element.milestonePercent ? <span className="text-cyan">{element.milestonePercent}%</span> : null}
+                </div>
               </div>
             ))}
           </div>

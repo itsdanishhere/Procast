@@ -130,6 +130,7 @@ export function normalizeBehavioralInsights(payload: any, fallback: BehavioralIn
           stage: String(item.stage ?? ""),
           stageName: String(item.stageName ?? item.stage ?? ""),
           elementName: String(item.elementName ?? item.stageName ?? item.stage ?? ""),
+          milestonePercent: typeof item.milestonePercent === "number" ? item.milestonePercent : undefined,
           locked: Boolean(item.locked),
           unlockedAt: item.unlockedAt ?? null,
           lockedAt: item.lockedAt ?? null

@@ -16,7 +16,9 @@ import {
   Trophy
 } from "lucide-react";
 
-export const worldStages = [
+export { worldStages } from "./world-stages";
+
+export const legacyWorldStages = [
   {
     level: 1,
     name: "Empty Land",
@@ -24,7 +26,7 @@ export const worldStages = [
     description: "A quiet plot waiting for proof that you can begin.",
     accent: "#63b3ed",
     symbol: "□",
-    subElements: ["Boundary Markers", "Starter Path", "Foundation Plot"]
+    subElements: ["Boundary Markers", "Starter Path", "Foundation Plot", "First Signal Flag"]
   },
   {
     level: 2,
@@ -33,7 +35,7 @@ export const worldStages = [
     description: "Your first shelter appears after consistent starts.",
     accent: "#76e4a7",
     symbol: "⌂",
-    subElements: ["Roof Frame", "Front Door", "Warm Lights"]
+    subElements: ["Roof Frame", "Front Door", "Window Glow", "Warm Lights"]
   },
   {
     level: 3,
@@ -42,7 +44,7 @@ export const worldStages = [
     description: "The foundation strengthens as your sessions stack.",
     accent: "#90cdf4",
     symbol: "⌂",
-    subElements: ["Second Floor", "Stronger Walls", "Study Room"]
+    subElements: ["Stronger Walls", "Second Floor", "Focus Desk", "Study Room"]
   },
   {
     level: 4,
@@ -51,7 +53,7 @@ export const worldStages = [
     description: "Discipline starts to feel alive and visible.",
     accent: "#68d391",
     symbol: "✦",
-    subElements: ["Flower Beds", "Water Fountain", "Stone Walkway"]
+    subElements: ["Seed Beds", "Flower Beds", "Stone Walkway", "Water Fountain"]
   },
   {
     level: 5,
@@ -60,25 +62,25 @@ export const worldStages = [
     description: "Your habit becomes a path you can return to.",
     accent: "#f6e05e",
     symbol: "━",
-    subElements: ["Street Lamps", "Road Markers", "Crossing Gate"]
+    subElements: ["Road Markers", "Street Lamps", "Crossing Gate", "Return Route"]
   },
   {
     level: 6,
-    name: "Town",
-    threshold: 1020,
-    description: "Focus sessions start forming a real system.",
-    accent: "#f6ad55",
-    symbol: "▣",
-    subElements: ["Town Hall", "Market Row", "Clock Tower"]
-  },
-  {
-    level: 7,
     name: "Village",
-    threshold: 1380,
+    threshold: 1020,
     description: "Your world is now protected by repeated effort.",
     accent: "#b794f4",
     symbol: "▦",
-    subElements: ["Village Square", "Community Homes", "Bridge"]
+    subElements: ["Community Homes", "Village Square", "Bridge", "Gathering Hall"]
+  },
+  {
+    level: 7,
+    name: "Town",
+    threshold: 1380,
+    description: "Focus sessions start forming a real system.",
+    accent: "#f6ad55",
+    symbol: "▣",
+    subElements: ["Market Row", "Workshop Block", "Town Hall", "Clock Tower"]
   },
   {
     level: 8,
@@ -87,7 +89,7 @@ export const worldStages = [
     description: "Momentum compounds into visible self-trust.",
     accent: "#63b3ed",
     symbol: "▩",
-    subElements: ["Transit Hub", "Work District", "Public Garden"]
+    subElements: ["Transit Hub", "Work District", "Public Garden", "Planning Center"]
   },
   {
     level: 9,
@@ -96,7 +98,7 @@ export const worldStages = [
     description: "Focused days now shape something hard to abandon.",
     accent: "#76e4a7",
     symbol: "▥",
-    subElements: ["Skyline Block", "Metro Core", "Innovation Center"]
+    subElements: ["Skyline Block", "Metro Core", "Innovation Center", "Discipline Tower"]
   },
   {
     level: 10,
@@ -105,7 +107,7 @@ export const worldStages = [
     description: "Your discipline has become an identity.",
     accent: "#f6ad55",
     symbol: "♜",
-    subElements: ["Citadel", "Royal District", "Throne Hall"]
+    subElements: ["Outer Wall", "Royal District", "Citadel", "Throne Hall"]
   }
 ] as const;
 

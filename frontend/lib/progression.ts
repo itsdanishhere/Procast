@@ -42,8 +42,9 @@ export function getXpToNextLevel(xp: number) {
 export function getStageProgressPercent(xp: number) {
   const level = getLevelForXp(xp);
   const current = getStage(level);
-  const next = getNextStage(xp);
-  if (current.level === next.level) return 100;
+  const currentIndex = worldStages.findIndex((stage) => stage.level === current.level);
+  const next = worldStages[currentIndex + 1];
+  if (!next) return 100;
   const span = next.threshold - current.threshold;
   return Math.min(100, Math.round(((xp - current.threshold) / span) * 100));
 }

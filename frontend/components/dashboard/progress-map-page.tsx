@@ -6,6 +6,7 @@ import { CheckCircle2, ChevronLeft, ChevronRight, Circle, Lock, ShieldCheck, Spa
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
+import { StageScene } from "@/components/dashboard/stage-scene";
 import { getLevelForXp, getNextStage, getStageProgressPercent, getXpToNextLevel } from "@/lib/progression";
 import { worldStages } from "@/lib/constants";
 import type { BehavioralInsightsDTO, ProgressDTO } from "@/lib/types";
@@ -163,9 +164,7 @@ export function ProgressMapPage({ progress }: { progress: ProgressDTO }) {
                             <Lock className="h-6 w-6 text-white/20" />
                           )}
                         </div>
-                        <div className="my-7 flex h-24 items-center justify-center rounded-2xl border border-white/10 bg-black/20 font-display text-5xl font-extrabold">
-                          {stage.symbol}
-                        </div>
+                        <StageScene stageCode={stage.code} accent={stage.accent} className="my-7 h-24" />
                         <p className="text-sm leading-6 text-muted">{stage.description}</p>
                         <div className="mt-4 space-y-2 rounded-xl border border-white/10 bg-black/20 p-3">
                           <p className="text-[11px] font-extrabold uppercase tracking-[0.14em] text-muted">

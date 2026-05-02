@@ -6,6 +6,7 @@ import { Lock, Map, ShieldCheck } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
+import { StageScene } from "@/components/dashboard/stage-scene";
 import { getLevelForXp, getNextStage, getStage, getStageProgressPercent, getXpToNextLevel } from "@/lib/progression";
 import { worldStages } from "@/lib/constants";
 import type { ProgressDTO, UnlockedElementDTO } from "@/lib/types";
@@ -61,7 +62,7 @@ export function WorldProgressCard({
                 )}
               >
                 {!protectedStage && unlocked ? <Lock className="absolute right-2 top-2 h-3.5 w-3.5" /> : null}
-                <span className="font-display text-2xl font-extrabold">{stage.symbol}</span>
+                <StageScene stageCode={stage.code} accent={stage.accent} className="h-10 w-12" />
                 <span className="mt-1 text-[10px] font-bold uppercase">{stage.name}</span>
               </div>
             );

@@ -41,7 +41,7 @@ export function AppProviders({ children }: { children: React.ReactNode }) {
       {children}
       <TimerCompletionSync />
       <FloatingTimer />
-      <FocusMusicPlayer open={musicPlayerOpen} onClose={() => setMusicPlayerOpen(false)} />
+      <FocusMusicPlayer open={musicPlayerOpen} onCloseAction={() => setMusicPlayerOpen(false)} />
       <Toaster
         position="top-right"
         toastOptions={{

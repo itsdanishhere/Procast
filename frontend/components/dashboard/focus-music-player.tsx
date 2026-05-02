@@ -79,14 +79,14 @@ const builtInTracks: BuiltInTrack[] = [
     durationSeconds: 182
   },
   {
-    id: "ragged-but-right",
+    id: "fur-elise",
     kind: "builtin",
-    title: "Ragged But Right",
+    title: "Für Elise",
     source: "Public domain song",
-    mood: "Traditional vocal song",
+    mood: "Classic piano study",
     category: "song",
-    url: "https://upload.wikimedia.org/wikipedia/commons/e/e7/RaggedButRight.ogg",
-    durationSeconds: 167
+    url: "https://upload.wikimedia.org/wikipedia/commons/1/15/For_Elise_%28F%C3%BCr_Elise%29_Beethoven_JMC_Han.ogg",
+    durationSeconds: 154
   },
   {
     id: "cripple-creek",
@@ -170,7 +170,7 @@ function createNoiseBuffer(context: AudioContext, engine: "rain" | "brown-noise"
   return buffer;
 }
 
-export function FocusMusicPlayer({ open, onClose }: { open: boolean; onClose: () => void }) {
+export function FocusMusicPlayer({ open, onCloseAction }: { open: boolean; onCloseAction: () => void }) {
   const [uploadedTracks, setUploadedTracks] = useState<UploadedTrackDTO[]>([]);
   const [activeTrackId, setActiveTrackId] = useState("rain");
   const [playing, setPlaying] = useState(false);
@@ -626,7 +626,7 @@ export function FocusMusicPlayer({ open, onClose }: { open: boolean; onClose: ()
     <div
       className="fixed inset-0 z-[95] flex items-center justify-center bg-black/62 px-3 py-4 backdrop-blur-xl sm:px-4 sm:py-6"
       onMouseDown={(event) => {
-        if (event.target === event.currentTarget) onClose();
+        if (event.target === event.currentTarget) onCloseAction();
       }}
     >
       <div className="glass-strong relative max-h-[92vh] w-full max-w-5xl overflow-y-auto overflow-x-hidden rounded-[28px] border-cyan/20 bg-[#10131f]/90 shadow-[0_36px_140px_rgba(0,0,0,0.62)]">
@@ -639,7 +639,7 @@ export function FocusMusicPlayer({ open, onClose }: { open: boolean; onClose: ()
                 <h2 className="mt-3 font-display text-3xl font-extrabold sm:text-4xl">Music that stays out of your way.</h2>
                 <p className="mt-2 text-sm leading-6 text-muted">Pick a focus sound, upload your own track, and keep it available inside ProCast.</p>
               </div>
-              <Button className={cn("h-11 w-11 shrink-0", roundClayButtonClass)} size="icon" variant="secondary" onClick={onClose} aria-label="Close music player">
+              <Button className={cn("h-11 w-11 shrink-0", roundClayButtonClass)} size="icon" variant="secondary" onClick={onCloseAction} aria-label="Close music player">
                 <X className="h-5 w-5" />
               </Button>
             </div>

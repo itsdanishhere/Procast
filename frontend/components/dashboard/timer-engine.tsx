@@ -331,6 +331,7 @@ export function TimerEngine({ tasks, settings, behavioralInsights, onSessionSave
       return;
     }
     timer.pause();
+    emitFocusMusicCommand({ action: "pause" });
   }
 
   async function resumeTimer() {
@@ -349,6 +350,7 @@ export function TimerEngine({ tasks, settings, behavioralInsights, onSessionSave
       return;
     }
     timer.resume();
+    emitFocusMusicCommand({ action: "resume" });
   }
 
   function handleReset() {

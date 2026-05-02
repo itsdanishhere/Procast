@@ -446,11 +446,13 @@ export function FloatingTimer() {
             return;
           }
           pause();
+          emitFocusMusicCommand({ action: "pause" });
           return;
         }
 
         if (!currentSessionId) {
           resume();
+          emitFocusMusicCommand({ action: "resume" });
           return;
         }
         const response = await apiFetch(`/timer/sessions/${currentSessionId}/resume`, {
@@ -462,6 +464,7 @@ export function FloatingTimer() {
           return;
         }
         resume();
+        emitFocusMusicCommand({ action: "resume" });
       };
       const onReset = async () => {
         const currentSessionId = backendSessionId;
@@ -896,11 +899,11 @@ export function FloatingTimer() {
 
         <div className="flex items-center justify-center gap-2">
           {status === "running" ? (
-            <Button type="button" size="icon" variant="secondary" onClick={() => void pauseTimer()} aria-label="Pause timer">
+            <Button type="button" size="icon" variant="secondary" onClick={() => { pauseTimer(); emitFocusMusicCommand({ action: "pause" }); }} aria-label="Pause timer">
               <Pause className="h-4 w-4" />
             </Button>
           ) : (
-            <Button type="button" size="icon" variant="secondary" onClick={() => void resumeTimer()} aria-label="Resume timer">
+            <Button type="button" size="icon" variant="secondary" onClick={() => { resumeTimer(); emitFocusMusicCommand({ action: "resume" }); }} aria-label="Resume timer">
               <Play className="h-4 w-4" />
             </Button>
           )}

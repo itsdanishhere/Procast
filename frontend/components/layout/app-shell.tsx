@@ -17,6 +17,8 @@ import type { ProgressDTO } from "@/lib/types";
 type ShellUser = {
   fullName: string;
   username: string;
+  archetypeName?: string;
+  archetypeImageUrl?: string;
   progress?: ProgressDTO | null;
 };
 
@@ -35,6 +37,8 @@ export function AppShell({ user: initialUser, children }: { user: ShellUser; chi
           setUser({
             fullName: data.user.profile?.fullName || data.user.username,
             username: data.user.username,
+            archetypeName: data.archetype?.name ?? "Rookie",
+            archetypeImageUrl: data.archetype?.imageUrl ?? undefined,
             progress: mergedProgress
           });
         } else if (response.status === 401) {
@@ -77,13 +81,26 @@ export function AppShell({ user: initialUser, children }: { user: ShellUser; chi
           ProCast
         </Link>
 
-        <div className="glass mb-5 rounded-2xl p-4">
+        <button
+          type="button"
+          onClick={() => router.push("/profile" as never)}
+          className="glass mb-5 block w-full rounded-2xl p-4 text-left transition hover:border-cyan/35 hover:bg-white/[0.06]"
+        >
           <div className="flex items-center gap-3">
-            <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-cyan/15 font-display text-lg font-extrabold text-cyan">
-              {user.fullName.charAt(0).toUpperCase()}
+            <div className="relative h-12 w-12 overflow-hidden rounded-2xl border border-cyan/35 bg-cyan/10">
+              {user.archetypeImageUrl ? (
+                <img src={user.archetypeImageUrl} alt={user.archetypeName || "Archetype avatar"} className="h-full w-full object-cover" />
+              ) : (
+                <div className="flex h-full w-full items-center justify-center font-display text-lg font-extrabold text-cyan">
+                  {user.fullName.charAt(0).toUpperCase()}
+                </div>
+              )}
             </div>
             <div className="min-w-0">
               <p className="truncate text-sm font-extrabold">{user.fullName}</p>
+              <p className="truncate text-[11px] font-bold uppercase tracking-[0.15em] text-[#f6c75f]">
+                {user.archetypeName ?? "Rookie"}
+              </p>
               <p className="truncate text-xs text-muted">@{user.username}</p>
             </div>
           </div>
@@ -101,7 +118,7 @@ export function AppShell({ user: initialUser, children }: { user: ShellUser; chi
               <p className="font-display font-extrabold text-amber">{user.progress?.dailyStreak ?? 0}</p>
             </div>
           </div>
-        </div>
+        </button>
 
         <nav className="space-y-1">
           {appNav.map((item) => {

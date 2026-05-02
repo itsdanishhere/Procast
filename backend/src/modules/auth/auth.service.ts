@@ -8,6 +8,7 @@ import { badRequest, conflict, forbidden, unauthorized } from "../../shared/erro
 import { prisma } from "../../shared/prisma/client";
 import { auditService } from "../audit-system/audit.service";
 import { normalizeEmail, securityService, sha256 } from "../security-system/security.service";
+import { pickRandomArchetype } from "../users/user-archetypes";
 import type { LoginInput, SignupInput } from "./auth.validation";
 
 const accessCookieName = "procast_access";
@@ -92,6 +93,7 @@ export class AuthService {
 
     const verificationToken = randomBytes(32).toString("hex");
     const passwordHash = await bcrypt.hash(input.password, env.BCRYPT_ROUNDS);
+    const archetype = pickRandomArchetype();
 
     const user = await prisma.$transaction(async (tx) => {
       const created = await tx.user.create({
@@ -105,7 +107,13 @@ export class AuthService {
             create: {
               fullName: input.fullName.trim(),
               timezone: input.timezone,
-              onboardingProgress: { currentStep: "baseline", completed: false },
+              onboardingProgress: {
+                currentStep: "baseline",
+                completed: false,
+                archetypeKey: archetype.key,
+                archetypeName: archetype.name,
+                archetypeImageUrl: archetype.imageUrl
+              },
               productivityPreferences: { primaryGoal: "stop_procrastinating" }
             }
           },

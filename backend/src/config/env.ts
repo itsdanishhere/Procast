@@ -19,3 +19,13 @@ const envSchema = z.object({
 
 export const env = envSchema.parse(process.env);
 export const isProduction = env.NODE_ENV === "production";
+
+if (isProduction) {
+  const weakSecretNames = ["JWT_ACCESS_SECRET", "JWT_REFRESH_SECRET"] as const;
+  for (const name of weakSecretNames) {
+    const value = env[name];
+    if (value.length < 32 || /replace|change|dev-only|secret/i.test(value)) {
+      throw new Error(`${name} must be a unique production secret with at least 32 non-placeholder characters.`);
+    }
+  }
+}

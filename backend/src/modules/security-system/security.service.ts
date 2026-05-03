@@ -41,7 +41,7 @@ export class SecurityService {
   }
 
   isPasswordStrong(password: string) {
-    return password.length >= 10 && /[A-Z]/.test(password) && /[0-9]/.test(password);
+    return password.length >= 9 && /[A-Z]/.test(password) && /[0-9]/.test(password);
   }
 }
 

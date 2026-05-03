@@ -16,7 +16,7 @@ import { cn } from "@/lib/cn";
 
 const priorities = ["LOW", "MEDIUM", "HIGH", "CRITICAL"] as const;
 
-export function TaskManager({ tasks, onTasksChange }: { tasks: TaskDTO[]; onTasksChange: (tasks: TaskDTO[]) => void }) {
+export function TaskManager({ tasks, onTasksChangeAction }: { tasks: TaskDTO[]; onTasksChangeAction: (tasks: TaskDTO[]) => void }) {
   const [title, setTitle] = useState("");
   const [avoidance, setAvoidance] = useState("");
   const [priority, setPriority] = useState<(typeof priorities)[number]>("MEDIUM");
@@ -56,7 +56,7 @@ export function TaskManager({ tasks, onTasksChange }: { tasks: TaskDTO[]; onTask
       return;
     }
 
-    onTasksChange([normalizeTask(data.task), ...tasks]);
+    onTasksChangeAction([normalizeTask(data.task), ...tasks]);
     setTitle("");
     setAvoidance("");
     setTags("");
@@ -77,7 +77,7 @@ export function TaskManager({ tasks, onTasksChange }: { tasks: TaskDTO[]; onTask
       return;
     }
 
-    onTasksChange(tasks.map((task) => (task.id === taskId ? normalizeTask(data.task) : task)));
+    onTasksChangeAction(tasks.map((task) => (task.id === taskId ? normalizeTask(data.task) : task)));
     if (payload.status === "COMPLETED") {
       await fetchAndEmitCurrentProgress();
       emitAppDataRefresh("task-completed");
@@ -96,7 +96,7 @@ export function TaskManager({ tasks, onTasksChange }: { tasks: TaskDTO[]; onTask
       toast.error("Could not delete task.");
       return;
     }
-    onTasksChange(tasks.filter((task) => task.id !== taskId));
+    onTasksChangeAction(tasks.filter((task) => task.id !== taskId));
     emitAppDataRefresh("task-deleted");
   }
 

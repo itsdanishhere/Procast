@@ -66,7 +66,7 @@ export function TimerPageClient({
           tasks={currentTasks}
           settings={currentSettings}
           behavioralInsights={behavior}
-          onSessionSaved={(session, nextProgress) => {
+          onSessionSavedAction={(session, nextProgress) => {
             if (nextProgress) {
               setCurrentProgress(nextProgress);
               emitProgressUpdate(nextProgress);
@@ -79,7 +79,7 @@ export function TimerPageClient({
       <ReflectionModal
         sessionId={reflectionSessionId}
         open={Boolean(reflectionSessionId)}
-        onClose={() => setReflectionSessionId(null)}
+        onCloseAction={() => setReflectionSessionId(null)}
       />
     </>
   );

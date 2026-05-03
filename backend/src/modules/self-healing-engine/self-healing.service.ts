@@ -13,6 +13,12 @@ export class SelfHealingService {
     return mode === "SHORT_BREAK" || mode === "LONG_BREAK";
   }
 
+  private isStopwatchSession(session: { antiCheatFlags: unknown }) {
+    return Array.isArray(session.antiCheatFlags)
+      ? session.antiCheatFlags.some((flag) => flag && typeof flag === "object" && (flag as { type?: unknown }).type === "stopwatch_mode")
+      : false;
+  }
+
   private minimumTrustSeconds(plannedSeconds: number) {
     return Math.floor(plannedSeconds * 0.9);
   }
@@ -33,16 +39,20 @@ export class SelfHealingService {
     recoveryId?: string
   ) {
     const now = new Date();
+    const isStopwatch = this.isStopwatchSession(session);
     const extraSeconds = session.startedAt ? Math.max(0, Math.floor((Date.now() - session.startedAt.getTime()) / 1000)) : 0;
     const totalAccumulated = Math.max(0, session.accumulatedFocusSeconds + extraSeconds);
-    const cappedAccumulated = Math.min(session.plannedSeconds, totalAccumulated);
-    const trusted = this.isBreakMode(session.mode) || cappedAccumulated >= this.minimumTrustSeconds(session.plannedSeconds);
+    const cappedAccumulated = isStopwatch ? totalAccumulated : Math.min(session.plannedSeconds, totalAccumulated);
+    const completedPlannedSeconds = isStopwatch ? Math.max(1, cappedAccumulated) : session.plannedSeconds;
+    const trusted =
+      isStopwatch ? cappedAccumulated >= 60 : this.isBreakMode(session.mode) || cappedAccumulated >= this.minimumTrustSeconds(session.plannedSeconds);
 
     if (trusted) {
       const completed = await tx.focusSession.update({
         where: { id: session.id },
         data: {
           status: "COMPLETED",
+          plannedSeconds: completedPlannedSeconds,
           accumulatedFocusSeconds: cappedAccumulated,
           completedAt: now,
           expectedEndAt: null,
@@ -59,24 +69,22 @@ export class SelfHealingService {
         }
       });
 
-      if (!this.isBreakMode(session.mode)) {
-        const amount = xpService.sessionXp(session.mode, session.plannedSeconds);
-        if (amount > 0) {
-          await xpService.grantInTransaction(
-            {
-              userId: session.userId,
-              focusSessionId: session.id,
-              sourceType: "FOCUS_SESSION",
-              sourceId: session.id,
-              reason: `Recovered completion for ${session.mode} focus session`,
-              amount,
-              idempotencyKey: `focus-session:${session.id}`
-            },
-            tx
-          );
-          await streakService.applyCompletedSession(session.userId, now, tx);
-          await achievementService.evaluate(session.userId, tx);
-        }
+      const amount = xpService.sessionXp(session.mode, completedPlannedSeconds);
+      if (amount > 0) {
+        await xpService.grantInTransaction(
+          {
+            userId: session.userId,
+            focusSessionId: session.id,
+            sourceType: "FOCUS_SESSION",
+            sourceId: session.id,
+            reason: `Recovered completion for ${isStopwatch ? "STOPWATCH" : session.mode} focus session`,
+            amount,
+            idempotencyKey: `focus-session:${session.id}`
+          },
+          tx
+        );
+        await streakService.applyCompletedSession(session.userId, now, tx);
+        await achievementService.evaluate(session.userId, tx);
       }
 
       return { completed, trusted: true, accumulatedFocusSeconds: cappedAccumulated, extraSeconds };

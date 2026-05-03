@@ -16,7 +16,7 @@
   --radius: 16px;
 }
 
-@theme inline {
+@theme {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --color-muted: var(--muted);

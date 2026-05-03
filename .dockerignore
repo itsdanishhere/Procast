@@ -1,0 +1,15 @@
+**/.env
+**/.env.*
+!**/.env.example
+!**/.env.production.example
+**/.next
+**/node_modules
+**/dist
+**/generated
+**/*.log
+**/*.tsbuildinfo
+**/backups
+.git
+.gitignore
+docker-compose*.yml
+README.md

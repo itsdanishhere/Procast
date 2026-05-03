@@ -22,7 +22,7 @@ type TimerEngineProps = {
   tasks: TaskDTO[];
   settings: SettingsDTO;
   behavioralInsights?: BehavioralInsightsDTO;
-  onSessionSaved: (session: SessionDTO, progress: ProgressDTO | null) => void;
+  onSessionSavedAction: (session: SessionDTO, progress: ProgressDTO | null) => void;
 };
 
 const distractionOptions = ["Social Media", "Interruption", "Boredom", "Too Hard", "Other"];
@@ -56,9 +56,10 @@ function errorMessage(error: unknown) {
   return undefined;
 }
 
-export function TimerEngine({ tasks, settings, behavioralInsights, onSessionSaved }: TimerEngineProps) {
+export function TimerEngine({ tasks, settings, behavioralInsights, onSessionSavedAction }: TimerEngineProps) {
   const router = useRouter();
   const timer = useTimerStore();
+  const setTimerModeAndDuration = timer.setModeAndDuration;
   const [selectedMode, setSelectedMode] = useState<TimerMode>("POMODORO");
   const [customMinutes, setCustomMinutes] = useState(settings.deepFocusMinutes);
   const [selectedTaskId, setSelectedTaskId] = useState<string>("");
@@ -103,6 +104,14 @@ export function TimerEngine({ tasks, settings, behavioralInsights, onSessionSave
     const interval = window.setInterval(timer.tick, 500);
     return () => window.clearInterval(interval);
   }, [timer.tick]);
+
+  useEffect(() => {
+    if (timerActive) return;
+    setCustomMinutes(settings.deepFocusMinutes);
+    if (selectedMode === "CUSTOM") {
+      setTimerModeAndDuration("CUSTOM", timerModes.CUSTOM.label, settings.deepFocusMinutes * 60);
+    }
+  }, [settings.deepFocusMinutes, selectedMode, setTimerModeAndDuration, timerActive]);
 
   useEffect(() => {
     if (timer.status !== "running" || !timer.backendSessionId) return;
@@ -205,7 +214,7 @@ export function TimerEngine({ tasks, settings, behavioralInsights, onSessionSave
     const endedAt =
       data.session.completedAt || data.session.abandonedAt || data.session.updatedAt || new Date().toISOString();
 
-    onSessionSaved(
+    onSessionSavedAction(
       {
         id: data.session.id,
         taskId: data.session.taskId ?? null,

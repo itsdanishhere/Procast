@@ -32,7 +32,10 @@ export function ForgotPasswordForm() {
       return;
     }
 
-    setSent(data);
+    setSent({
+      ...data,
+      message: data.message || "If that account exists, a reset link is ready."
+    });
   }
 
   return (

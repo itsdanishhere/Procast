@@ -62,16 +62,28 @@ npm run worker --workspace backend
 ```bash
 npm run lint
 npm run typecheck
+npm test
 npm run build
 npm audit --audit-level=moderate
 ```
+
+## Website Deployment
+
+ProCast includes production Dockerfiles, a production compose stack, health endpoints, and a deployment guide.
+
+```bash
+cp .env.production.example .env.production
+docker compose --env-file .env.production -f docker-compose.prod.yml up --build -d
+```
+
+See `DEPLOYMENT.md` for domain, TLS, health check, worker, and update guidance.
 
 ## Backend Capabilities
 
 - Enterprise auth: signup, login, access/refresh tokens, refresh rotation, lockouts, password reset, email verification-ready tokens, session records.
 - Timer authority: start, active session restore, pause, resume, heartbeat, completion validation, early exit, anti-cheat drift flags.
 - XP engine: idempotent XP ledger, atomic progress updates, no duplicate rewards.
-- World progression: Empty Land through Kingdom, unlock history, lock-back support.
+- World progression: 50-stage discipline world from Empty Land to ProCast Realm, 4 substages per stage, unlock history, and lock-back support.
 - Streak engine: timezone-aware daily/weekly streak events and recovery hooks.
 - Tasks: priorities, due dates, tags, recurring-ready fields, separate avoidance prompt history.
 - Reflections: structured post-session psychology data and pattern tracking.

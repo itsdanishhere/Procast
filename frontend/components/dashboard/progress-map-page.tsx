@@ -18,6 +18,7 @@ import { appDataRefreshEvent } from "@/lib/timer-events";
 
 const substageProgressMarks = [25, 50, 75, 100] as const;
 const stagesPerPage = 10;
+const standardFocusSessionXp = 25;
 const modalSpring = { type: "spring", stiffness: 260, damping: 24 } as const;
 
 export function ProgressMapPage({ progress }: { progress: ProgressDTO }) {
@@ -28,7 +29,7 @@ export function ProgressMapPage({ progress }: { progress: ProgressDTO }) {
   const [modalTab, setModalTab] = useState<"overview" | "elements" | "intel">("overview");
   const [selectedElementIndex, setSelectedElementIndex] = useState(0);
   const [selectedElementMode, setSelectedElementMode] = useState<"track" | "stabilize" | "push">("track");
-  const [xpPreviewGain, setXpPreviewGain] = useState(35);
+  const [xpPreviewGain, setXpPreviewGain] = useState(standardFocusSessionXp);
   const totalXp = currentProgress.totalXp ?? 0;
   const currentLevel = getLevelForXp(totalXp);
   const next = getNextStage(totalXp);
@@ -68,7 +69,7 @@ export function ProgressMapPage({ progress }: { progress: ProgressDTO }) {
     const progressWithinMap = Math.round((stage.level / worldStages.length) * 100);
     const estimatedSessionsToComplete =
       (xpLeftToCompleteStage ?? Math.max(0, nextThreshold - totalXp)) > 0
-        ? Math.ceil((xpLeftToCompleteStage ?? Math.max(0, nextThreshold - totalXp)) / 35)
+        ? Math.ceil((xpLeftToCompleteStage ?? Math.max(0, nextThreshold - totalXp)) / standardFocusSessionXp)
         : 0;
     return {
       stage,
@@ -189,7 +190,7 @@ export function ProgressMapPage({ progress }: { progress: ProgressDTO }) {
   useEffect(() => {
     setSelectedElementIndex(0);
     setSelectedElementMode("track");
-    setXpPreviewGain(35);
+    setXpPreviewGain(standardFocusSessionXp);
   }, [selectedStageLevel]);
 
   return (
@@ -688,7 +689,7 @@ export function ProgressMapPage({ progress }: { progress: ProgressDTO }) {
                       <p className="mt-2 text-2xl font-extrabold">
                         ~{selectedStage.estimatedSessionsToComplete} sessions
                       </p>
-                      <p className="mt-2 text-xs text-white/75">Estimated using ~35 XP per completed focus run.</p>
+                      <p className="mt-2 text-xs text-white/75">Estimated using a standard 25-minute focus run.</p>
                     </div>
                   </div>
 

@@ -33,6 +33,18 @@ type TimerState = {
   complete: () => void;
   tick: () => void;
   setModeAndDuration: (mode: TimerMode, label: string, seconds: number) => void;
+  restore: (input: {
+    mode: TimerMode;
+    label: string;
+    durationSeconds: number;
+    remainingSeconds: number;
+    status: "running" | "paused";
+    taskId?: string | null;
+    taskTitle?: string | null;
+    backendSessionId: string;
+    runStartedAtMs?: number | null;
+    stopwatchAccumulatedSeconds?: number;
+  }) => void;
   autoPip: boolean;
   setAutoPip: (val: boolean) => void;
 };
@@ -162,6 +174,39 @@ export const useTimerStore = create<TimerState>()(
           endsAtMs: null,
           startedAtIso: null,
           stopwatchAccumulatedSeconds: 0
+        });
+      },
+      restore: ({
+        mode,
+        label,
+        durationSeconds,
+        remainingSeconds,
+        status,
+        taskId,
+        taskTitle,
+        backendSessionId,
+        runStartedAtMs,
+        stopwatchAccumulatedSeconds
+      }) => {
+        const isStopwatch = mode === "STOPWATCH";
+        set({
+          mode,
+          label,
+          durationSeconds: isStopwatch ? 0 : durationSeconds,
+          remainingSeconds,
+          status,
+          startedAtIso: new Date().toISOString(),
+          endsAtMs:
+            status === "running"
+              ? isStopwatch
+                ? runStartedAtMs ?? Date.now()
+                : Date.now() + remainingSeconds * 1000
+              : null,
+          taskId: taskId || null,
+          taskTitle: taskTitle || null,
+          backendSessionId,
+          completionId: null,
+          stopwatchAccumulatedSeconds: isStopwatch ? stopwatchAccumulatedSeconds ?? remainingSeconds : 0
         });
       },
       autoPip: false,

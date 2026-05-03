@@ -25,6 +25,17 @@ function setTokenCookies(response: Response, tokens: { accessToken: string; refr
   );
 }
 
+function clearTokenCookies(response: Response) {
+  const options = {
+    sameSite: "lax" as const,
+    secure: env.NODE_ENV === "production",
+    domain: env.COOKIE_DOMAIN || undefined,
+    path: "/"
+  };
+  response.clearCookie(authCookies.accessCookieName, options);
+  response.clearCookie(authCookies.refreshCookieName, options);
+}
+
 export class AuthController {
   signup = asyncHandler(async (request, response) => {
     const result = await authService.signup(request.body, meta(request));
@@ -47,8 +58,7 @@ export class AuthController {
 
   logout = asyncHandler(async (request, response) => {
     await authService.logout(request.auth?.sessionId);
-    response.clearCookie(authCookies.accessCookieName);
-    response.clearCookie(authCookies.refreshCookieName);
+    clearTokenCookies(response);
     response.status(204).send();
   });
 

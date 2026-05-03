@@ -22,6 +22,10 @@ export function ResetPasswordForm() {
 
   async function onSubmit(event: FormEvent) {
     event.preventDefault();
+    if (password !== confirmPassword) {
+      setError("Password and confirm password must match.");
+      return;
+    }
     setLoading(true);
     setError("");
 
@@ -29,11 +33,11 @@ export function ResetPasswordForm() {
       method: "POST",
       body: JSON.stringify({ token, password })
     });
-    const data = await response.json();
+    const data = response.status === 204 ? null : await response.json();
     setLoading(false);
 
     if (!response.ok) {
-      const errorMsg = typeof data.error === "object" ? data.error.message || JSON.stringify(data.error) : data.error;
+      const errorMsg = typeof data?.error === "object" ? data.error.message || JSON.stringify(data.error) : data?.error;
       setError(errorMsg || "Could not reset password.");
       return;
     }

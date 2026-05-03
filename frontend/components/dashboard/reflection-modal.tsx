@@ -14,11 +14,11 @@ import { emitReflectionSaved } from "@/lib/timer-events";
 export function ReflectionModal({
   open,
   sessionId,
-  onClose
+  onCloseAction
 }: {
   open: boolean;
   sessionId: string | null;
-  onClose: () => void;
+  onCloseAction: () => void;
 }) {
   const [form, setForm] = useState({ focusRating: 3, distraction: "", wentWell: "", improve: "", notes: "" });
   const [loading, setLoading] = useState(false);
@@ -56,7 +56,7 @@ export function ReflectionModal({
     await fetchAndEmitCurrentProgress();
     emitReflectionSaved();
     setForm({ focusRating: 3, distraction: "", wentWell: "", improve: "", notes: "" });
-    onClose();
+    onCloseAction();
   }
 
   return (
@@ -68,7 +68,7 @@ export function ReflectionModal({
             <h2 className="mt-2 font-display text-3xl font-extrabold">Lock in the lesson.</h2>
             <p className="mt-2 text-sm text-muted">This is where distraction patterns stop hiding.</p>
           </div>
-          <Button size="icon" variant="secondary" onClick={onClose} aria-label="Close reflection">
+          <Button size="icon" variant="secondary" onClick={onCloseAction} aria-label="Close reflection">
             <X className="h-4 w-4" />
           </Button>
         </div>
@@ -111,7 +111,7 @@ export function ReflectionModal({
             <Textarea value={form.notes} onChange={(event) => update("notes", event.target.value)} />
           </label>
           <div className="flex justify-end gap-3">
-            <Button type="button" variant="secondary" onClick={onClose}>
+            <Button type="button" variant="secondary" onClick={onCloseAction}>
               Skip
             </Button>
             <Button disabled={loading}>{loading ? "Saving..." : "Save Reflection"}</Button>

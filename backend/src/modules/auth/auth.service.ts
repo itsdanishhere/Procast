@@ -164,9 +164,12 @@ export class AuthService {
     return {
       user: this.toPublicUser(user),
       tokens,
-      verification: {
-        devVerificationToken: verificationToken
-      }
+      verification: isProduction
+        ? { emailVerificationReady: true }
+        : {
+            emailVerificationReady: true,
+            devVerificationToken: verificationToken
+          }
     };
   }
 
@@ -332,7 +335,8 @@ export class AuthService {
 
     return {
       ok: true,
-      devResetUrl: `${env.FRONTEND_ORIGIN}/reset-password?token=${token}`
+      message: "If an account exists for that email, a reset link has been prepared.",
+      ...(isProduction ? {} : { devResetUrl: `${env.FRONTEND_ORIGIN}/reset-password?token=${token}` })
     };
   }
 

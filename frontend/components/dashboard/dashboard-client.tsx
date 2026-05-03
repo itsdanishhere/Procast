@@ -9,7 +9,7 @@ import { TimerEngine } from "@/components/dashboard/timer-engine";
 import { WorldProgressCard } from "@/components/dashboard/world-progress-card";
 import { Card } from "@/components/ui/card";
 import { apiFetch } from "@/lib/api-client";
-import { defaultBehavioralInsights, fetchRecentSessions, fetchTasks, normalizeBehavioralInsights } from "@/lib/live-data";
+import { defaultBehavioralInsights, fetchRecentSessions, fetchTasks, normalizeBehavioralInsights, normalizeSettings } from "@/lib/live-data";
 import { emitProgressUpdate, normalizeProgress } from "@/lib/progress-dto";
 import { appDataRefreshEvent, timerSessionSavedEvent, type TimerSessionSavedDetail } from "@/lib/timer-events";
 import type { BehavioralInsightsDTO, ProgressDTO, SessionDTO, SettingsDTO, TaskDTO } from "@/lib/types";
@@ -42,6 +42,7 @@ export function DashboardClient({
   const [tasks, setTasks] = useState<TaskDTO[]>(initialTasks);
   const [sessions, setSessions] = useState<SessionDTO[]>(initialSessions);
   const [progress, setProgress] = useState<ProgressDTO>(initialProgress);
+  const [currentSettings, setCurrentSettings] = useState<SettingsDTO>(settings);
   const [behavior, setBehavior] = useState<BehavioralInsightsDTO>(defaultBehavioralInsights);
   const [reflectionSessionId, setReflectionSessionId] = useState<string | null>(null);
   const [todayCompletedCount, setTodayCompletedCount] = useState(() => countCompletedToday(initialSessions));
@@ -72,6 +73,7 @@ export function DashboardClient({
       if (meRes.ok) {
         const meData = await meRes.json();
         const mergedProgress = normalizeProgress(meData.user.progress, meData.user.streak, initialProgress);
+        setCurrentSettings(normalizeSettings(meData.user?.settingsDto ?? meData.user?.settings, meData.user?.profile, settings));
         setProgress(mergedProgress);
         emitProgressUpdate(mergedProgress);
       }
@@ -85,7 +87,7 @@ export function DashboardClient({
     } catch (e) {
       console.error("Dashboard load failed", e);
     }
-  }, [initialProgress]);
+  }, [initialProgress, settings]);
 
   useEffect(() => {
     void loadDashboard();
@@ -116,7 +118,7 @@ export function DashboardClient({
     <>
       <div className="mb-5 grid gap-4 md:grid-cols-4">
         {[
-          { label: "Today", value: `${todayCompletedCount}/${settings.dailyFocusGoal}`, icon: Clock3, color: "text-cyan" },
+          { label: "Today", value: `${todayCompletedCount}/${currentSettings.dailyFocusGoal}`, icon: Clock3, color: "text-cyan" },
           { label: "Streak", value: `${progress.dailyStreak} days`, icon: Flame, color: "text-amber" },
           { label: "XP", value: (progress.totalXp ?? 0).toLocaleString(), icon: Sparkles, color: "text-mint" },
           { label: "Lock Pressure", value: progress.lockStrikes ? `${progress.lockStrikes} strike` : "Stable", icon: Activity, color: "text-danger" }
@@ -170,9 +172,9 @@ export function DashboardClient({
         <div className="space-y-5">
           <TimerEngine
             tasks={tasks.filter((task) => task.status === "ACTIVE")}
-            settings={settings}
+            settings={currentSettings}
             behavioralInsights={behavior}
-            onSessionSaved={(session, nextProgress) => {
+            onSessionSavedAction={(session, nextProgress) => {
               addSession(session);
               if (nextProgress) {
                 setProgress(nextProgress);
@@ -181,7 +183,7 @@ export function DashboardClient({
               if (session.status === "COMPLETED") setReflectionSessionId(session.id);
             }}
           />
-          <TaskManager tasks={tasks} onTasksChange={setTasks} />
+          <TaskManager tasks={tasks} onTasksChangeAction={setTasks} />
         </div>
         <div className="space-y-5">
           <WorldProgressCard progress={progress} unlockedElements={behavior.unlockedElements} />
@@ -213,7 +215,7 @@ export function DashboardClient({
       <ReflectionModal
         sessionId={reflectionSessionId}
         open={Boolean(reflectionSessionId)}
-        onClose={() => setReflectionSessionId(null)}
+        onCloseAction={() => setReflectionSessionId(null)}
       />
     </>
   );

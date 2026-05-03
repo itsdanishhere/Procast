@@ -63,7 +63,7 @@ export function ProgressMapPage({ progress }: { progress: ProgressDTO }) {
     const current = stage.level === currentLevel;
     const completionRatio = stageCompletionRatio(stage.threshold, nextThreshold);
     const elementUnlockCount = unlockedSubElementCount(stage.threshold, nextThreshold, protectedStage);
-    const stageCost = globalIndex === 0 ? 0 : stage.threshold - worldStages[globalIndex - 1].threshold;
+    const stageGoal = Math.max(0, nextThreshold - stage.threshold);
     const xpLeftToCompleteStage = current && nextThreshold > stage.threshold ? Math.max(0, nextThreshold - totalXp) : stage.level < currentLevel ? 0 : null;
     const unlockGapXp = stage.level > currentLevel ? Math.max(0, stage.threshold - totalXp) : 0;
     const progressWithinMap = Math.round((stage.level / worldStages.length) * 100);
@@ -79,7 +79,7 @@ export function ProgressMapPage({ progress }: { progress: ProgressDTO }) {
       current,
       completionPercent: Math.round(completionRatio * 100),
       elementUnlockCount,
-      stageCost,
+      stageGoal,
       xpLeftToCompleteStage,
       unlockGapXp,
       progressWithinMap,
@@ -255,7 +255,7 @@ export function ProgressMapPage({ progress }: { progress: ProgressDTO }) {
                     const nextThreshold = worldStages[globalIndex + 1]?.threshold ?? stage.threshold;
                     const elementUnlockCount = unlockedSubElementCount(stage.threshold, nextThreshold, protectedStage);
                     const stageCompletion = Math.round(stageCompletionRatio(stage.threshold, nextThreshold) * 100);
-                    const stageCost = globalIndex === 0 ? 0 : stage.threshold - worldStages[globalIndex - 1].threshold;
+                    const stageGoal = Math.max(0, nextThreshold - stage.threshold);
                     const xpLeftToCompleteStage =
                       current && nextThreshold > stage.threshold ? Math.max(0, nextThreshold - totalXp) : stage.level < currentLevel ? 0 : null;
                     return (
@@ -327,7 +327,7 @@ export function ProgressMapPage({ progress }: { progress: ProgressDTO }) {
                           })}
                         </div>
                         <div className="mt-4 flex items-center justify-between gap-3 text-xs font-bold">
-                          <span className="text-cyan">{stageCost} XP required</span>
+                          <span className="text-cyan">{stageGoal > 0 ? `${stageGoal} XP Goal` : "Final Stage"}</span>
                           {xpLeftToCompleteStage === null ? (
                             <span className="text-white/35">Locked</span>
                           ) : (
@@ -555,8 +555,8 @@ export function ProgressMapPage({ progress }: { progress: ProgressDTO }) {
                       </p>
                     </motion.div>
                     <motion.div className="rounded-2xl border border-amber/20 bg-amber/10 p-4" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.08 }}>
-                      <p className="text-[11px] font-extrabold uppercase tracking-[0.14em] text-amber">Stage Cost</p>
-                      <p className="mt-2 text-2xl font-extrabold">{selectedStage.stageCost} XP</p>
+                      <p className="text-[11px] font-extrabold uppercase tracking-[0.14em] text-amber">Level Goal</p>
+                      <p className="mt-2 text-2xl font-extrabold">{selectedStage.stageGoal > 0 ? `${selectedStage.stageGoal} XP` : "Final Stage"}</p>
                     </motion.div>
                     <motion.div className="rounded-2xl border border-white/20 bg-white/[0.04] p-4" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.11 }}>
                       <p className="text-[11px] font-extrabold uppercase tracking-[0.14em] text-muted">Power Rank</p>

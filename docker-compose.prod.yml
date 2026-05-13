@@ -88,6 +88,7 @@ services:
     environment:
       NODE_ENV: production
       PORT: 3000
+      PROCAST_API_BASE_URL: ${PROCAST_API_BASE_URL:-http://backend:4000}
     depends_on:
       backend:
         condition: service_healthy

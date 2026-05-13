@@ -1,0 +1,114 @@
+# Render Blueprint for ProCast.
+# Docs: https://render.com/docs/blueprint-spec
+
+services:
+  - type: web
+    runtime: node
+    name: procast-web
+    plan: starter
+    region: oregon
+    buildCommand: npm ci && npm run build --workspace frontend
+    startCommand: npm run start --workspace frontend -- -H 0.0.0.0 -p $PORT
+    healthCheckPath: /api/health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: NODE_VERSION
+        value: 22.22.0
+      - key: NEXT_PUBLIC_APP_URL
+        value: https://procast-web.onrender.com
+      - key: NEXT_PUBLIC_API_URL
+        value: /v1
+      - key: PROCAST_API_HOSTPORT
+        fromService:
+          name: procast-api
+          type: web
+          property: hostport
+
+  - type: web
+    runtime: node
+    name: procast-api
+    plan: starter
+    region: oregon
+    buildCommand: npm ci && npm run build --workspace backend
+    preDeployCommand: npm run prisma:deploy --workspace backend && npm run preflight:prod --workspace backend
+    startCommand: npm run start --workspace backend
+    healthCheckPath: /v1/health/live
+    envVars:
+      - fromGroup: procast-runtime
+      - key: PORT
+        value: 10000
+      - key: DATABASE_URL
+        fromDatabase:
+          name: procast-db
+          property: connectionString
+      - key: REDIS_URL
+        fromService:
+          name: procast-redis
+          type: keyvalue
+          property: connectionString
+
+  - type: worker
+    runtime: node
+    name: procast-worker
+    plan: starter
+    region: oregon
+    buildCommand: npm ci && npm run build --workspace backend
+    startCommand: npm run start:worker --workspace backend
+    disk:
+      name: procast-backups
+      mountPath: /var/data/procast-backups
+      sizeGB: 5
+    envVars:
+      - fromGroup: procast-runtime
+      - key: DATABASE_URL
+        fromDatabase:
+          name: procast-db
+          property: connectionString
+      - key: REDIS_URL
+        fromService:
+          name: procast-redis
+          type: keyvalue
+          property: connectionString
+
+  - type: keyvalue
+    name: procast-redis
+    plan: starter
+    region: oregon
+    maxmemoryPolicy: noeviction
+    ipAllowList: []
+
+databases:
+  - name: procast-db
+    plan: basic-256mb
+    region: oregon
+    databaseName: procast
+    user: procast
+    postgresMajorVersion: "16"
+    ipAllowList: []
+
+envVarGroups:
+  - name: procast-runtime
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: NODE_VERSION
+        value: 22.22.0
+      - key: API_BASE_URL
+        value: https://procast-api.onrender.com
+      - key: FRONTEND_ORIGIN
+        value: https://procast-web.onrender.com
+      - key: COOKIE_DOMAIN
+        value: ""
+      - key: ACCESS_TOKEN_TTL_SECONDS
+        value: 900
+      - key: REFRESH_TOKEN_TTL_DAYS
+        value: 30
+      - key: BCRYPT_ROUNDS
+        value: 12
+      - key: BACKUP_DIRECTORY
+        value: /var/data/procast-backups
+      - key: JWT_ACCESS_SECRET
+        generateValue: true
+      - key: JWT_REFRESH_SECRET
+        generateValue: true

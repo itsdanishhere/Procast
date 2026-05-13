@@ -69,7 +69,17 @@ npm audit --audit-level=moderate
 
 ## Website Deployment
 
-ProCast includes production Dockerfiles, a production compose stack, health endpoints, and a deployment guide.
+ProCast includes a Render Blueprint, production Dockerfiles, a production compose stack, health endpoints, and a deployment guide.
+
+For Render, connect the repo as a Blueprint. Render will read `render.yaml` and create:
+
+- `procast-web` - Next.js frontend
+- `procast-api` - Express API
+- `procast-worker` - BullMQ worker
+- `procast-db` - managed Postgres
+- `procast-redis` - Render Key Value
+
+For Docker Compose:
 
 ```bash
 cp .env.production.example .env.production

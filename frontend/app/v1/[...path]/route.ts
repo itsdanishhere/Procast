@@ -25,8 +25,8 @@ function backendBaseUrl() {
     return process.env.PROCAST_API_BASE_URL;
   }
 
-  if (process.env.PROCAST_API_HOSTPORT) {
-    return `http://${process.env.PROCAST_API_HOSTPORT}`;
+  if (process.env.NODE_ENV === "production") {
+    throw new Error("PROCAST_API_BASE_URL is required when proxying /v1 API calls in production.");
   }
 
   return "http://localhost:4000";

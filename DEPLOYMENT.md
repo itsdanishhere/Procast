@@ -1,6 +1,6 @@
 # ProCast Deployment Guide
 
-This project is deployment-ready as a Render Blueprint or as a containerized full-stack website:
+This project is deployment-ready as a Vercel-hosted frontend plus a separately hosted backend, or as a containerized full-stack website:
 
 - `frontend`: Next.js website
 - `backend`: Express API and WebSocket server
@@ -8,43 +8,53 @@ This project is deployment-ready as a Render Blueprint or as a containerized ful
 - `postgres`: production database
 - `redis`: queue, recovery, and realtime infrastructure
 
-## 1. Render Deployment
+## 1. Vercel Frontend Deployment
 
-Use `render.yaml` when deploying this repository on Render. The Blueprint creates:
+Vercel should host only the Next.js frontend in this repository. The backend is a long-running Express API with WebSockets, BullMQ workers, Redis, and Postgres, so it needs a separate backend host.
 
-- `procast-web`: Next.js frontend web service
-- `procast-api`: Express API web service
-- `procast-worker`: BullMQ background worker
-- `procast-db`: managed PostgreSQL
-- `procast-redis`: Render Key Value
+Import setup:
 
-The frontend calls `/v1/...` on its own origin. `frontend/app/v1/[...path]/route.ts` forwards those requests to `procast-api` over Render's private network by using the `PROCAST_API_HOSTPORT` value injected from the Blueprint.
+1. Push this repo to GitHub.
+2. In Vercel, choose **Add New > Project** and import the repo.
+3. Set **Root Directory** to `frontend`.
+4. Keep **Framework Preset** as `Next.js`.
+5. Use these commands if Vercel asks:
+   - Install Command: `npm install`
+   - Build Command: `npm run build`
+   - Output Directory: leave blank/default
+6. Deploy after adding the environment variables below.
 
-Render setup:
+Required Vercel environment variables:
 
-1. Push this repo to GitHub or GitLab.
-2. In Render, choose **New > Blueprint** and select this repo.
-3. Review `render.yaml` before the first deploy. Change `region` before deploying if Oregon is not the right region for your users.
-4. Deploy the Blueprint.
-5. If Render changes the service subdomains, update these env vars and redeploy:
-   - `NEXT_PUBLIC_APP_URL` on `procast-web`
-   - `API_BASE_URL` and `FRONTEND_ORIGIN` in the `procast-runtime` env group
-
-The Blueprint pins Node with `.node-version` and `NODE_VERSION=22.22.0` so Render does not silently use a newer major Node version.
-
-Health checks after deploy:
-
-```bash
-curl https://procast-web.onrender.com/api/health
-curl https://procast-web.onrender.com/v1/health/live
-curl https://procast-web.onrender.com/v1/health/ready
+```env
+NEXT_PUBLIC_API_URL=/v1
+NEXT_PUBLIC_APP_URL=https://your-project.vercel.app
+PROCAST_API_BASE_URL=https://api.your-domain.com
 ```
 
-Notes:
+`PROCAST_API_BASE_URL` is the public origin of the backend service. It may include `/v1`, but using the origin only is preferred.
 
-- The committed Blueprint uses paid starter/basic Render plans because this app has a worker, Postgres, Redis-compatible queues, and durable backup manifests.
-- If you need a lower-cost hobby deployment, you can downgrade the web services, database, and Key Value plan, but Render background workers are not available on the free plan.
-- Keep `COOKIE_DOMAIN` empty for `onrender.com` deployments. Set it only when using your own shared parent domain, for example `.procast.example.com`.
+How API calls work on Vercel:
+
+- The browser calls `/v1/...` on the Vercel frontend.
+- `frontend/app/v1/[...path]/route.ts` forwards the request to `PROCAST_API_BASE_URL`.
+- This keeps auth cookies same-origin from the browser's point of view.
+
+Health checks after deploy, assuming your Vercel app is `https://your-project.vercel.app`:
+
+```bash
+curl https://your-project.vercel.app/api/health
+curl https://your-project.vercel.app/v1/health/live
+curl https://your-project.vercel.app/v1/health/ready
+```
+
+Backend requirement:
+
+- Host `backend/` somewhere that supports a persistent Node process, WebSockets, Redis, and Postgres.
+- Run Prisma migrations before or during backend deployment with `npm run prisma:deploy --workspace backend`.
+- Run the worker separately with `npm run start:worker --workspace backend`.
+- Set backend `FRONTEND_ORIGIN` to your Vercel frontend URL.
+- Keep `COOKIE_DOMAIN` empty for `*.vercel.app`. Set it only when using your own shared parent domain, for example `.procast.example.com`.
 
 ## 2. Docker Compose Deployment
 
@@ -114,8 +124,8 @@ docker compose --env-file .env.production.example -f docker-compose.prod.yml con
 
 - Put TLS in front of both frontend and API.
 - Set `FRONTEND_ORIGIN` to the exact website origin.
-- On Render, keep `NEXT_PUBLIC_API_URL=/v1` so the frontend uses the private-network proxy.
-- For Docker or separate public API hosting, set `NEXT_PUBLIC_API_URL` to the public API `/v1` URL before building the frontend image.
+- On Vercel, keep `NEXT_PUBLIC_API_URL=/v1` so the frontend uses the same-origin proxy.
+- For Docker or direct public API hosting, set `NEXT_PUBLIC_API_URL` to the public API `/v1` URL before building the frontend image.
 - Use managed Postgres/Redis for serious production, or back up the Docker volumes regularly.
 - Keep `worker` running; notifications, analytics aggregation, backups, and recovery jobs depend on it.
 - Monitor `/v1/health/ready`, container restarts, and backend logs.

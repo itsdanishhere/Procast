@@ -69,15 +69,17 @@ npm audit --audit-level=moderate
 
 ## Website Deployment
 
-ProCast includes a Render Blueprint, production Dockerfiles, a production compose stack, health endpoints, and a deployment guide.
+ProCast includes Vercel frontend config, production Dockerfiles, a production compose stack, health endpoints, and a deployment guide.
 
-For Render, connect the repo as a Blueprint. Render will read `render.yaml` and create:
+For Vercel, import the repo and set the project root directory to `frontend`.
 
-- `procast-web` - Next.js frontend
-- `procast-api` - Express API
-- `procast-worker` - BullMQ worker
-- `procast-db` - managed Postgres
-- `procast-redis` - Render Key Value
+Required Vercel environment variables:
+
+- `NEXT_PUBLIC_API_URL=/v1`
+- `NEXT_PUBLIC_APP_URL=https://your-project.vercel.app`
+- `PROCAST_API_BASE_URL=https://api.your-domain.com`
+
+The Express API, worker, Postgres, and Redis still need to run outside Vercel, for example with Docker Compose on a VPS or another backend host.
 
 For Docker Compose:
 

@@ -488,7 +488,7 @@ export function FloatingTimer() {
             return;
           }
         }
-        emitFocusMusicCommand({ action: "pause" });
+        emitFocusMusicCommand({ action: "stop" });
         reset();
       };
       const goDashboard = () => {
@@ -850,7 +850,7 @@ export function FloatingTimer() {
         return;
       }
     }
-    emitFocusMusicCommand({ action: "pause" });
+    emitFocusMusicCommand({ action: "stop" });
     reset();
   }
 

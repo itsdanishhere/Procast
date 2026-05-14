@@ -325,7 +325,7 @@ export function TimerEngine({ tasks, settings, behavioralInsights, onSessionSave
     setEndingSession(false);
     if (!saved) return;
 
-    emitFocusMusicCommand({ action: "pause" });
+    emitFocusMusicCommand({ action: "stop" });
     timer.reset();
   }
 
@@ -345,7 +345,7 @@ export function TimerEngine({ tasks, settings, behavioralInsights, onSessionSave
     setConfirmExit(false);
     setExitReasonCategory("Social Media");
     setExitCustomReason("");
-    emitFocusMusicCommand({ action: "pause" });
+    emitFocusMusicCommand({ action: "stop" });
     timer.reset();
   }
 

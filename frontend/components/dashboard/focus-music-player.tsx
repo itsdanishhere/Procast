@@ -26,6 +26,7 @@ import {
   focusMusicCommandEvent,
   type FocusMusicCommandDetail
 } from "@/lib/music-events";
+import { useTimerStore } from "@/lib/timer-store";
 
 type UploadedTrackDTO = {
   id: string;
@@ -181,6 +182,7 @@ export function FocusMusicPlayer({ open, onCloseAction }: { open: boolean; onClo
   const [volume, setVolume] = useState(0.55);
   const [repeat, setRepeat] = useState(true);
   const [shuffle, setShuffle] = useState(false);
+  const timerStatus = useTimerStore((state) => state.status);
 
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const objectUrlRef = useRef<string | null>(null);
@@ -259,7 +261,20 @@ export function FocusMusicPlayer({ open, onCloseAction }: { open: boolean; onClo
   function stopCurrentTrack(resetPosition = true) {
     clearProgressTimer();
     stopGeneratedNodes();
-    audioRef.current?.pause();
+    const audio = audioRef.current;
+    if (audio) {
+      audio.onended = null;
+      audio.onerror = null;
+      audio.onloadedmetadata = null;
+      audio.pause();
+      try {
+        audio.currentTime = 0;
+      } catch {
+        // Some streamed sources do not allow seeking before metadata is ready.
+      }
+      audio.removeAttribute("src");
+      audio.load();
+    }
     audioRef.current = null;
     cleanupObjectUrl();
     setPlaying(false);
@@ -267,6 +282,12 @@ export function FocusMusicPlayer({ open, onCloseAction }: { open: boolean; onClo
       elapsedBeforePlayRef.current = 0;
       setElapsed(0);
     }
+  }
+
+  function stopMusicSession() {
+    stopCurrentTrack();
+    musicSessionActiveRef.current = false;
+    setMusicSessionActive(false);
   }
 
   function startProgress(track: MusicTrack) {
@@ -558,6 +579,10 @@ export function FocusMusicPlayer({ open, onCloseAction }: { open: boolean; onClo
   }
 
   useEffect(() => {
+    if (timerStatus === "completed") stopMusicSession();
+  }, [timerStatus]);
+
+  useEffect(() => {
     if (open) void loadUploadedTracks();
   }, [open]);
 
@@ -579,9 +604,7 @@ export function FocusMusicPlayer({ open, onCloseAction }: { open: boolean; onClo
       }
 
       if (action === "stop") {
-        stopCurrentTrack();
-        musicSessionActiveRef.current = false;
-        setMusicSessionActive(false);
+        stopMusicSession();
         return;
       }
 

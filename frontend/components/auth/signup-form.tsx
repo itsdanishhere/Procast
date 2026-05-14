@@ -11,6 +11,14 @@ import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { apiFetch } from "@/lib/api-client";
 
+async function parseResponseJson(response: Response) {
+  try {
+    return await response.json();
+  } catch {
+    return null;
+  }
+}
+
 export function SignupForm() {
   const router = useRouter();
   const [form, setForm] = useState({
@@ -67,27 +75,32 @@ export function SignupForm() {
 
     setLoading(true);
 
-    const response = await apiFetch("/auth/signup", {
-      method: "POST",
-      body: JSON.stringify({
-        fullName: form.fullName,
-        email: form.email,
-        username: form.username,
-        password: form.password,
-        timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC"
-      })
-    });
-    const data = await response.json();
-    setLoading(false);
+    try {
+      const response = await apiFetch("/auth/signup", {
+        method: "POST",
+        body: JSON.stringify({
+          fullName: form.fullName,
+          email: form.email,
+          username: form.username,
+          password: form.password,
+          timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC"
+        })
+      });
+      const data = await parseResponseJson(response);
 
-    if (!response.ok) {
-      setError(parseBackendError(data));
-      return;
+      if (!response.ok) {
+        setError(parseBackendError(data));
+        return;
+      }
+
+      toast.success("Account created. Empty Land unlocked.");
+      router.push("/dashboard");
+      router.refresh();
+    } catch (error) {
+      setError(error instanceof Error ? error.message : "Account creation failed.");
+    } finally {
+      setLoading(false);
     }
-
-    toast.success("Account created. Empty Land unlocked.");
-    router.push("/dashboard");
-    router.refresh();
   }
 
   return (

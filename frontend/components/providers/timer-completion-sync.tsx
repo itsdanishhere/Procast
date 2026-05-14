@@ -53,11 +53,11 @@ export function TimerCompletionSync() {
     async function completeSession() {
       if (!timer.backendSessionId) {
         toast.error("Backend timer session was not created. Start the session again.");
-        emitFocusMusicCommand({ action: "pause" });
+        emitFocusMusicCommand({ action: "stop" });
         return;
       }
 
-      emitFocusMusicCommand({ action: "pause" });
+      emitFocusMusicCommand({ action: "stop" });
       playCompletionSound();
       if (Notification.permission === "granted") {
         new Notification("ProCast session complete", {

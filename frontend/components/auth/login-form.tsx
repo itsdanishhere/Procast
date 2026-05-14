@@ -11,6 +11,14 @@ import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { apiFetch } from "@/lib/api-client";
 
+async function parseResponseJson(response: Response) {
+  try {
+    return await response.json();
+  } catch {
+    return null;
+  }
+}
+
 export function LoginForm() {
   const router = useRouter();
   const [identifier, setIdentifier] = useState("");
@@ -24,22 +32,27 @@ export function LoginForm() {
     setLoading(true);
     setError("");
 
-    const response = await apiFetch("/auth/login", {
-      method: "POST",
-      body: JSON.stringify({ identifier, password })
-    });
-    const data = await response.json();
-    setLoading(false);
+    try {
+      const response = await apiFetch("/auth/login", {
+        method: "POST",
+        body: JSON.stringify({ identifier, password })
+      });
+      const data = await parseResponseJson(response);
 
-    if (!response.ok) {
-      const errorMsg = typeof data.error === "object" ? data.error.message || JSON.stringify(data.error) : data.error;
-      setError(errorMsg || "Login failed.");
-      return;
+      if (!response.ok) {
+        const errorMsg = typeof data?.error === "object" ? data.error.message || JSON.stringify(data.error) : data?.error;
+        setError(errorMsg || "Login failed.");
+        return;
+      }
+
+      toast.success("Session restored.");
+      router.push("/dashboard");
+      router.refresh();
+    } catch (error) {
+      setError(error instanceof Error ? error.message : "Login failed.");
+    } finally {
+      setLoading(false);
     }
-
-    toast.success("Session restored.");
-    router.push("/dashboard");
-    router.refresh();
   }
 
   return (

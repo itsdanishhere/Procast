@@ -578,6 +578,13 @@ export function FocusMusicPlayer({ open, onCloseAction }: { open: boolean; onClo
         return;
       }
 
+      if (action === "stop") {
+        stopCurrentTrack();
+        musicSessionActiveRef.current = false;
+        setMusicSessionActive(false);
+        return;
+      }
+
       if (action === "resume") {
         if (!musicSessionActiveRef.current) return;
         await playTrack(activeTrackIdRef.current, true);

@@ -32,6 +32,21 @@ function backendBaseUrl() {
   return "http://localhost:4000";
 }
 
+function proxyErrorResponse(error: unknown) {
+  const message = error instanceof Error ? error.message : "API proxy request failed.";
+  const isConfigError = message.includes("PROCAST_API_BASE_URL");
+
+  return Response.json(
+    {
+      error: {
+        code: isConfigError ? "API_PROXY_CONFIGURATION_ERROR" : "API_PROXY_ERROR",
+        message
+      }
+    },
+    { status: isConfigError ? 500 : 502 }
+  );
+}
+
 function proxyUrl(request: NextRequest, path: string[]) {
   const base = new URL(backendBaseUrl());
   const basePath = base.pathname.replace(/\/$/, "");
@@ -90,26 +105,30 @@ function setCookieHeaders(headers: Headers) {
 }
 
 async function proxy(request: NextRequest, context: RouteContext) {
-  const { path } = await context.params;
-  const method = request.method.toUpperCase();
-  const init: RequestInit = {
-    method,
-    headers: requestHeaders(request),
-    redirect: "manual",
-    cache: "no-store"
-  };
+  try {
+    const { path } = await context.params;
+    const method = request.method.toUpperCase();
+    const init: RequestInit = {
+      method,
+      headers: requestHeaders(request),
+      redirect: "manual",
+      cache: "no-store"
+    };
 
-  if (method !== "GET" && method !== "HEAD") {
-    init.body = await request.arrayBuffer();
+    if (method !== "GET" && method !== "HEAD") {
+      init.body = await request.arrayBuffer();
+    }
+
+    const backendResponse = await fetch(proxyUrl(request, path), init);
+
+    return new Response(backendResponse.body, {
+      status: backendResponse.status,
+      statusText: backendResponse.statusText,
+      headers: responseHeaders(backendResponse.headers)
+    });
+  } catch (error) {
+    return proxyErrorResponse(error);
   }
-
-  const backendResponse = await fetch(proxyUrl(request, path), init);
-
-  return new Response(backendResponse.body, {
-    status: backendResponse.status,
-    statusText: backendResponse.statusText,
-    headers: responseHeaders(backendResponse.headers)
-  });
 }
 
 export const GET = proxy;

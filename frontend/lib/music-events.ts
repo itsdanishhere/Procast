@@ -10,7 +10,7 @@ export type FocusMusicStateDetail = {
 };
 
 export type FocusMusicCommandDetail = {
-  action: "toggle" | "pause" | "resume" | "resume-or-start";
+  action: "toggle" | "pause" | "resume" | "resume-or-start" | "stop";
 };
 
 export function emitFocusMusicState(detail: FocusMusicStateDetail) {

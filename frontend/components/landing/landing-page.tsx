@@ -16,15 +16,15 @@ const flow = ["Task", "Focus Session", "XP", "Unlock", "Streak", "Growth"];
 
 const testimonials = [
   {
-    name: "Aarav, CS student",
+    name: "Dakshayani, CS student",
     quote: "The map changed the feeling of studying. Missing a day finally had visible weight."
   },
   {
-    name: "Nisha, exam prep",
+    name: "Poonam, exam prep",
     quote: "The question 'what are you avoiding?' makes me start the exact task I was dodging."
   },
   {
-    name: "Dev, founder",
+    name: "TeamProcast ( Group-19 ), founder",
     quote: "It feels less like a timer and more like a discipline game that happens to be useful."
   }
 ];

@@ -1,12 +1,14 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { usePathname } from "next/navigation";
 import { Toaster } from "sonner";
 
 import { FocusMusicPlayer } from "@/components/dashboard/focus-music-player";
 import { FloatingTimer } from "@/components/dashboard/floating-timer";
 import { TimerCompletionSync } from "@/components/providers/timer-completion-sync";
 import { apiFetch } from "@/lib/api-client";
+import { getAccessToken } from "@/lib/auth-session";
 import { timerModes } from "@/lib/constants";
 import { focusMusicOpenEvent } from "@/lib/music-events";
 import { appDataRefreshEvent, appDataRefreshStorageKey, type AppDataRefreshDetail } from "@/lib/timer-events";
@@ -42,9 +44,11 @@ function frontendTimerMode(session: NonNullable<ActiveTimerResponse["session"]>)
 }
 
 export function AppProviders({ children }: { children: React.ReactNode }) {
+  const pathname = usePathname();
   const [musicPlayerOpen, setMusicPlayerOpen] = useState(false);
   const timerStatus = useTimerStore((state) => state.status);
   const restoreTimer = useTimerStore((state) => state.restore);
+  const publicRoute = pathname === "/" || pathname === "/login" || pathname === "/signup" || pathname === "/forgot-password" || pathname === "/reset-password";
 
   useEffect(() => {
     function handleStorage(event: StorageEvent) {
@@ -62,6 +66,7 @@ export function AppProviders({ children }: { children: React.ReactNode }) {
   }, []);
 
   useEffect(() => {
+    if (publicRoute || !getAccessToken()) return;
     if (timerStatus === "running" || timerStatus === "paused") return;
 
     let cancelled = false;
@@ -107,7 +112,7 @@ export function AppProviders({ children }: { children: React.ReactNode }) {
     return () => {
       cancelled = true;
     };
-  }, [restoreTimer, timerStatus]);
+  }, [publicRoute, restoreTimer, timerStatus]);
 
   useEffect(() => {
     function handleOpenMusicPlayer() {

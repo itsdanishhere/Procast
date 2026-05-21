@@ -32,12 +32,12 @@ NEXT_PUBLIC_APP_URL=https://your-project.vercel.app
 PROCAST_API_BASE_URL=https://api.your-domain.com
 ```
 
-`PROCAST_API_BASE_URL` is the public origin of the backend service. It may include `/v1`, but using the origin only is preferred.
+`PROCAST_API_BASE_URL` is the public origin of the backend service. Use the backend origin only, without `/v1`, unless your backend is intentionally mounted under another base path.
 
 How API calls work on Vercel:
 
 - The browser calls `/v1/...` on the Vercel frontend.
-- `frontend/app/v1/[...path]/route.ts` forwards the request to `PROCAST_API_BASE_URL`.
+- `frontend/app/v1/[...path]/route.ts` forwards the request to `${PROCAST_API_BASE_URL}/v1/...`.
 - This keeps auth cookies same-origin from the browser's point of view.
 
 Health checks after deploy, assuming your Vercel app is `https://your-project.vercel.app`:
@@ -84,6 +84,18 @@ API_BASE_URL=https://api.your-domain.com
 NEXT_PUBLIC_API_URL=https://api.your-domain.com/v1
 COOKIE_DOMAIN=.your-domain.com
 ```
+
+## Vercel Frontend
+
+If deploying the frontend on Vercel, set these environment variables in the Vercel project:
+
+```env
+NEXT_PUBLIC_API_URL=/v1
+NEXT_PUBLIC_APP_URL=https://your-vercel-app.vercel.app
+PROCAST_API_BASE_URL=https://your-backend-domain.com
+```
+
+`PROCAST_API_BASE_URL` must be the backend origin only, without `/v1`. The frontend API proxy route forwards `/v1/*` to `${PROCAST_API_BASE_URL}/v1/*`, so signup, login, refresh, and timer APIs do not accidentally call the Vercel frontend itself. Vercel builds now fail if `NEXT_PUBLIC_API_URL=/v1` is used without `PROCAST_API_BASE_URL`, because that would reproduce the signup 500 seen when the frontend calls its own domain.
 
 ### Build and Start
 

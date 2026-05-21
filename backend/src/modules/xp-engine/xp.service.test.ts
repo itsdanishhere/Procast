@@ -13,7 +13,7 @@ describe("production policy guards", () => {
   });
 
   it("keeps signup validation and service password policy aligned at 9 characters", () => {
-    const password = "Password1";
+    const password = "123456789";
     expect(signupSchema.safeParse({
       fullName: "Launch User",
       username: "launch_user",

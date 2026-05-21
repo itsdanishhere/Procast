@@ -21,12 +21,13 @@ const hopByHopHeaders = new Set([
 ]);
 
 function backendBaseUrl() {
-  if (process.env.PROCAST_API_BASE_URL) {
-    return process.env.PROCAST_API_BASE_URL;
+  const configuredBackendUrl = process.env.PROCAST_API_BASE_URL?.trim();
+  if (configuredBackendUrl) {
+    return configuredBackendUrl;
   }
 
   if (process.env.NODE_ENV === "production") {
-    throw new Error("PROCAST_API_BASE_URL is required when proxying /v1 API calls in production.");
+    throw new Error("API_PROXY_MISSING_BACKEND_URL");
   }
 
   return "http://localhost:4000";
@@ -34,13 +35,15 @@ function backendBaseUrl() {
 
 function proxyErrorResponse(error: unknown) {
   const message = error instanceof Error ? error.message : "API proxy request failed.";
-  const isConfigError = message.includes("PROCAST_API_BASE_URL");
+  const isConfigError = message.includes("API_PROXY_MISSING_BACKEND_URL");
 
   return Response.json(
     {
       error: {
         code: isConfigError ? "API_PROXY_CONFIGURATION_ERROR" : "API_PROXY_ERROR",
-        message
+        message: isConfigError
+          ? "The frontend API proxy is not connected to the backend. Set PROCAST_API_BASE_URL in the deployment environment and redeploy."
+          : "API proxy request failed."
       }
     },
     { status: isConfigError ? 500 : 502 }

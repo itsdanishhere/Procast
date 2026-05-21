@@ -1,10 +1,6 @@
 import { z } from "zod";
 
-const passwordSchema = z
-  .string()
-  .min(9, "Password must be at least 9 characters.")
-  .regex(/[A-Z]/, "Password must include an uppercase letter.")
-  .regex(/[0-9]/, "Password must include a number.");
+const passwordSchema = z.string().min(9, "Password must be at least 9 characters.");
 
 export const signupSchema = z.object({
   fullName: z.string().min(2).max(100),

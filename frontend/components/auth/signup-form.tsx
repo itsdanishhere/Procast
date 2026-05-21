@@ -42,8 +42,6 @@ export function SignupForm() {
       return "Username must be 3-30 characters and use only letters, numbers, or underscore.";
     }
     if (form.password.length < 9) return "Password must be at least 9 characters.";
-    if (!/[A-Z]/.test(form.password)) return "Password must include at least one uppercase letter.";
-    if (!/[0-9]/.test(form.password)) return "Password must include at least one number.";
     if (form.password !== form.confirmPassword) return "Password and confirm password must match.";
     return "";
   }
@@ -52,6 +50,9 @@ export function SignupForm() {
     const fallback = "Account creation failed.";
     if (!data?.error) return fallback;
     if (typeof data.error === "string") return data.error;
+    if (data.error.code === "API_PROXY_CONFIGURATION_ERROR") {
+      return "The backend is not connected to this deployment. Set PROCAST_API_BASE_URL in Vercel and redeploy.";
+    }
     if (data.error.message !== "Please check the submitted fields.") return data.error.message || fallback;
     const fieldErrors = data.error?.details?.fieldErrors;
     if (!fieldErrors || typeof fieldErrors !== "object") return data.error.message || fallback;
@@ -137,7 +138,7 @@ export function SignupForm() {
             autoComplete="new-password"
           />
           <PasswordStrength password={form.password} />
-          <p className="mt-2 text-xs text-muted">Use at least 9 characters, one uppercase letter, and one number.</p>
+          <p className="mt-2 text-xs text-muted">Use at least 9 characters. Stronger passwords are recommended.</p>
         </label>
         <label className="block">
           <span className="mb-2 block text-sm font-bold text-muted">Confirm password</span>
